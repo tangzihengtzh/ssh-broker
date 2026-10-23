@@ -1,0 +1,8 @@
+# This is a command file for sshctl, not a full Tcl interpreter.
+# Set SSHBROKER_PASSWORD in the calling process first.
+# Replace host/user/fingerprint before running this file.
+configure --host 192.0.2.10 --port 22 --user root --auth password --password-env SSHBROKER_PASSWORD --fingerprint SHA256:REPLACE_WITH_VERIFIED_FINGERPRINT --telnet-port 7001
+policy shared
+connect
+status
+send --client agent --text "help" --cr

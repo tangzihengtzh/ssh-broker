@@ -1,0 +1,57 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{5B875AC5-E3F3-4918-9D56-60B923250EEE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SshBroker.Core", "src\SshBroker.Core\SshBroker.Core.csproj", "{0E5E33FC-D501-4FD1-92B1-C3A074FC010C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SshBroker.Host", "src\SshBroker.Host\SshBroker.Host.csproj", "{C8F4B9B0-4BF8-40DB-B3DC-79E31710C4D4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SshBroker.Cli", "src\SshBroker.Cli\SshBroker.Cli.csproj", "{C7F88761-CCA1-401A-88BD-3991BE718CFA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SshBroker.Gui", "src\SshBroker.Gui\SshBroker.Gui.csproj", "{A5471808-765D-456E-B745-B780FDB53FAE}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{E0E563C2-879B-44C8-B3B5-128FC8B975B7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SshBroker.Tests", "tests\SshBroker.Tests\SshBroker.Tests.csproj", "{704DB74A-F378-4D99-9B5D-ACB58C8135E1}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0E5E33FC-D501-4FD1-92B1-C3A074FC010C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0E5E33FC-D501-4FD1-92B1-C3A074FC010C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0E5E33FC-D501-4FD1-92B1-C3A074FC010C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0E5E33FC-D501-4FD1-92B1-C3A074FC010C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C8F4B9B0-4BF8-40DB-B3DC-79E31710C4D4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C8F4B9B0-4BF8-40DB-B3DC-79E31710C4D4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C8F4B9B0-4BF8-40DB-B3DC-79E31710C4D4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C8F4B9B0-4BF8-40DB-B3DC-79E31710C4D4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C7F88761-CCA1-401A-88BD-3991BE718CFA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C7F88761-CCA1-401A-88BD-3991BE718CFA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C7F88761-CCA1-401A-88BD-3991BE718CFA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C7F88761-CCA1-401A-88BD-3991BE718CFA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A5471808-765D-456E-B745-B780FDB53FAE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A5471808-765D-456E-B745-B780FDB53FAE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A5471808-765D-456E-B745-B780FDB53FAE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A5471808-765D-456E-B745-B780FDB53FAE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{704DB74A-F378-4D99-9B5D-ACB58C8135E1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{704DB74A-F378-4D99-9B5D-ACB58C8135E1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{704DB74A-F378-4D99-9B5D-ACB58C8135E1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{704DB74A-F378-4D99-9B5D-ACB58C8135E1}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{0E5E33FC-D501-4FD1-92B1-C3A074FC010C} = {5B875AC5-E3F3-4918-9D56-60B923250EEE}
+		{C8F4B9B0-4BF8-40DB-B3DC-79E31710C4D4} = {5B875AC5-E3F3-4918-9D56-60B923250EEE}
+		{C7F88761-CCA1-401A-88BD-3991BE718CFA} = {5B875AC5-E3F3-4918-9D56-60B923250EEE}
+		{A5471808-765D-456E-B745-B780FDB53FAE} = {5B875AC5-E3F3-4918-9D56-60B923250EEE}
+		{704DB74A-F378-4D99-9B5D-ACB58C8135E1} = {E0E563C2-879B-44C8-B3B5-128FC8B975B7}
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>WinExe</OutputType><UseWPF>true</UseWPF><AssemblyName>SshBroker</AssemblyName></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../SshBroker.Core/SshBroker.Core.csproj" /></ItemGroup>
+</Project>

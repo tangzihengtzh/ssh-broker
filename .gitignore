@@ -1,0 +1,13 @@
+**/bin/
+**/obj/
+/artifacts/
+/logs/
+/tests/.runtime/
+/docs/build-output.txt
+/docs/test-output.txt
+*.user
+.vs/
+__pycache__/
+.pytest_cache/
+/docs/LOGIN-UX-TEST.md
+/docs/superpowers/plans/
