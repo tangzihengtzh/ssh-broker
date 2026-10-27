@@ -4,9 +4,9 @@
 
 Windows 多设备 SSH 工作区：在不同标签页中管理虚拟机和 Linux 开发板，并让本机终端与自动化工具共享每个目标的远端终端。
 
-[下载 V2.0.0](https://github.com/tangzihengtzh/ssh-broker/releases/tag/V2.0.0) · [旧版本](https://github.com/tangzihengtzh/ssh-broker/tree/main) · [使用帮助](docs/USER-GUIDE.html)
+[下载 V2.0.0](https://github.com/tangzihengtzh/ssh-broker/releases/tag/V2.0.0) · [V1.0.0 旧版归档](https://github.com/tangzihengtzh/ssh-broker/tree/V1.0.0) · [使用帮助](docs/USER-GUIDE.html)
 
-V2.0.0 使用独立的 **release/V2.0.0** 分支和 **V2.0.0** 标签发布，原 `main` 分支及其历史保持不变。
+**main** 分支跟随最新版本。**V2.0.0** 标签固定保存本次正式版；旧版本使用 **V1.0.0** 标签归档，原始文件及历史完整保留。
 
 ## 本版升级
 

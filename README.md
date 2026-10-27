@@ -4,9 +4,9 @@
 
 A multi-device SSH workspace for Windows. Manage virtual machines and Linux boards in separate tabs, and share each remote terminal with local terminal clients and automation tools.
 
-[Download V2.0.0](https://github.com/tangzihengtzh/ssh-broker/releases/tag/V2.0.0) · [Previous version](https://github.com/tangzihengtzh/ssh-broker/tree/main) · [Usage guide](docs/USER-GUIDE.html)
+[Download V2.0.0](https://github.com/tangzihengtzh/ssh-broker/releases/tag/V2.0.0) · [V1.0.0 archive](https://github.com/tangzihengtzh/ssh-broker/tree/V1.0.0) · [Usage guide](docs/USER-GUIDE.html)
 
-V2.0.0 is published on the **release/V2.0.0** branch and **V2.0.0** tag. The previous `main` branch and its history are preserved.
+The **main** branch tracks the latest version. V2.0.0 is preserved by the **V2.0.0** tag; the previous version is archived under **V1.0.0**, with its original files and history intact.
 
 ## What's new
 
