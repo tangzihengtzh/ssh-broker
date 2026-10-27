@@ -8,7 +8,7 @@ using SshBroker.Core;
 
 namespace SshBroker.Gui;
 
-public partial class MainWindow : Window
+public partial class SessionView : UserControl
 {
     public SnapshotProjection View { get; } = new();
     private readonly Func<RpcRequest, Task<RpcResponse>> _call;
@@ -16,12 +16,48 @@ public partial class MainWindow : Window
     private bool _refreshing, _applying, _draft, _syncing;
     private long _formRevision = -1, _cursor;
     private bool _connecting;
-    public MainWindow(string pipe, Func<RpcRequest, Task<RpcResponse>> call)
+    private Func<RpcRequest, Task<RpcResponse>>? _workspace;
+    private string _sessionId = "";
+    private ConnectionProfile[] _profiles = [];
+    private bool _choosingHistory;
+    private int _hostEdit;
+    private int _portEdit;
+    private bool _suggesting;
+    private Task _pendingHost = Task.CompletedTask;
+    private bool _nameDraft, _settingName;
+    public event Action<string>? PaletteRequested;
+    public void SetName(string name)
+    {
+        if (_nameDraft || NameBox.IsKeyboardFocusWithin) return;
+        _settingName = true; try { NameBox.Text = name; } finally { _settingName = false; }
+    }
+    private void NameEdited(object sender, TextChangedEventArgs e) { if (!_settingName) _nameDraft = true; }
+    public void UpdateHistory(ConnectionProfile[] profiles)
+    {
+        if (_profiles.SequenceEqual(profiles)) return;
+        _syncing = true;
+        try { string text = HostBox.Text; _profiles = profiles; HostBox.ItemsSource = profiles; HostBox.Text = text; }
+        finally { _syncing = false; }
+    }
+    public async Task AttachWorkspaceAsync(string id, string name, Func<RpcRequest, Task<RpcResponse>> workspace)
+    {
+        _workspace = workspace; _sessionId = id; SetName(name);
+        var response = await workspace(RpcRequest.Create("history", new { exclude = id }));
+        if (!response.Ok) { StatusLabel.Text = response.Message; return; }
+        var data = ToElement(response.Result);
+        var preferences = data.GetProperty("preferences").Deserialize<UserPreferences>(Wire.Json)!;
+        _profiles = preferences.History;
+        HostBox.ItemsSource = _profiles;
+        SetPalette(preferences.Palette);
+    }
+    public SessionView(string pipe, Func<RpcRequest, Task<RpcResponse>> call)
     {
         _call = call;
-        InitializeComponent(); DataContext = this; PipeLabel.Text = $"CLI 管道：{pipe}";
+        InitializeComponent(); DataContext = this;
+        HostBox.AddHandler(TextBox.TextChangedEvent, new TextChangedEventHandler(HostEdited));
+        PaletteBox.ItemsSource = ConnectionHistory.Palettes; SetPalette("Light");
         _poll.Tick += async (_, _) => await RefreshAsync();
-        Closed += (_, _) => StopPolling();
+
     }
     public void BeginPolling() { _poll.Start(); _ = RefreshAsync(); }
     public void StopPolling() => _poll.Stop();
@@ -69,12 +105,13 @@ public partial class MainWindow : Window
                 // Keep this window's masked input after its own successful submit.
                 // External updates must discard stale local secrets before a later submit.
                 if (!_applying) { PasswordInput.Clear(); PassphraseInput.Clear(); }
-                PasswordLabel.Text = snapshot.HasPassword ? "密码（已设置；留空保留）" : "密码（尚未设置）";
+                PasswordLabel.Text = snapshot.HasPassword ? "密码（已设置）" : "密码";
                 _formRevision = snapshot.ConfigRevision; _draft = false;
-                DraftLabel.Text = "已与服务状态同步；更改后点击应用或连接。";
+                DraftLabel.Text = "配置已保存";
             }
             bool editable = snapshot.State is "disconnected" or "faulted";
             ConnectionFields.IsEnabled = editable; ApplyButton.IsEnabled = editable && !_applying; ConnectButton.IsEnabled = editable && !_applying;
+            LogRootBox.IsEnabled = editable;
         }
         finally { _syncing = false; }
     }
@@ -84,7 +121,8 @@ public partial class MainWindow : Window
         try
         {
             var response = await _call(request); Apply(response.Snapshot);
-            StatusLabel.Text = response.Ok ? $"{request.Method} 完成；revision={response.Snapshot.Revision}" : response.Code switch
+            StatusLabel.Text = response.Ok ? request.Method switch
+            { "connect" => "已连接", "disconnect" => "已断开", "configure" => "配置已保存", "send" => "已发送", "resize" => "尺寸已更新", _ => "已更新" } : response.Code switch
             {
                 "host_key_unknown" => "尚未信任服务器主机密钥，与密码无关。请核对观测指纹，点击“核对后使用此指纹”，然后再次连接。密码已保留。",
                 "host_key_mismatch" => "服务器主机密钥与受信任指纹不一致，请确认服务器身份后再更新指纹。",
@@ -110,6 +148,16 @@ public partial class MainWindow : Window
             };
             if (PasswordInput.Password.Length > 0) values["password"] = PasswordInput.Password;
             if (PassphraseInput.Password.Length > 0) values["keyPassphrase"] = PassphraseInput.Password;
+            if (HostBox.Text.Trim() != View.Host || int.Parse(PortBox.Text, CultureInfo.InvariantCulture) != View.Port)
+            {
+                values.TryAdd("password", ""); values.TryAdd("keyPassphrase", "");
+            }
+            if (_workspace != null)
+            {
+                var renamed = await _workspace(RpcRequest.Create("session-rename", new { id = _sessionId, name = NameBox.Text }));
+                if (!renamed.Ok) { StatusLabel.Text = renamed.Message; return false; }
+                _nameDraft = false;
+            }
             _applying = true;
             return await ExecuteAsync(RpcRequest.Create("configure", values));
         }
@@ -119,9 +167,122 @@ public partial class MainWindow : Window
     private void DraftChanged(object sender, RoutedEventArgs e)
     {
         if (_syncing || DraftLabel == null) return;
-        _draft = true; DraftLabel.Text = "有未应用的草稿；顶部显示的仍是权威配置。";
+        _draft = true; DraftLabel.Text = "未保存的更改";
     }
     private void PasswordChanged(object sender, RoutedEventArgs e) => DraftChanged(sender, e);
+    private async void NameLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (_workspace == null) return;
+        try { var response = await _workspace(RpcRequest.Create("session-rename", new { id = _sessionId, name = NameBox.Text })); if (!response.Ok) StatusLabel.Text = response.Message; else _nameDraft = false; }
+        catch (Exception ex) { StatusLabel.Text = ex.Message; }
+    }
+    private void TelnetPortEdited(object sender, TextChangedEventArgs e)
+    { if (!_syncing && !_choosingHistory && !_suggesting) _portEdit++; DraftChanged(sender, e); }
+    private void HostEdited(object sender, TextChangedEventArgs e)
+    {
+        if (_syncing || _choosingHistory) return;
+        DraftChanged(sender, e);
+        int edit = ++_hostEdit;
+        if (!HostBox.Text.Trim().Equals(View.Host, StringComparison.OrdinalIgnoreCase)) { PasswordInput.Clear(); PassphraseInput.Clear(); }
+        if (_workspace == null) return;
+        _pendingHost = UpdateHostAsync(edit, _portEdit);
+    }
+    private async Task UpdateHostAsync(int edit, int portEdit)
+    {
+        await Task.Delay(350);
+        if (edit != _hostEdit || _syncing || View.State is "connected" or "connecting") return;
+        string host = HostBox.Text.Trim();
+        if (host.Length == 0) return;
+        try
+        {
+            int port = int.TryParse(PortBox.Text, out var sshPort) ? sshPort : 22;
+            var response = await _workspace!(RpcRequest.Create("history", new { host, port, exclude = _sessionId }));
+            if (edit != _hostEdit || !response.Ok) return;
+            var data = ToElement(response.Result);
+            if (_portEdit == portEdit)
+            {
+                _suggesting = true;
+                try { TelnetPortBox.Text = data.GetProperty("suggestedPort").GetInt32().ToString(CultureInfo.InvariantCulture); }
+                finally { _suggesting = false; }
+            }
+            // A pin from a different endpoint must not follow an edited host.
+            FingerprintBox.Text = HostTrustStore.Load(host, port);
+        }
+        catch (Exception ex) { StatusLabel.Text = ex.Message; }
+    }
+    private void HistorySelected(object sender, SelectionChangedEventArgs e)
+    {
+        if (_syncing || HostBox.SelectedItem is not ConnectionProfile item) return;
+        _choosingHistory = true; ++_hostEdit;
+        try
+        {
+            HostBox.Text = item.Host; PortBox.Text = item.Port.ToString(CultureInfo.InvariantCulture);
+            UserBox.Text = item.Username; NameBox.Text = item.Name;
+            TelnetPortBox.Text = item.TelnetPort.ToString(CultureInfo.InvariantCulture);
+            FingerprintBox.Text = HostTrustStore.Load(item.Host, item.Port);
+            PasswordInput.Clear(); PassphraseInput.Clear(); DraftChanged(sender, e);
+        }
+        finally { _choosingHistory = false; }
+    }
+    public void SetPalette(string palette)
+    {
+        palette = ConnectionHistory.NormalizePalette(palette);
+        var colors = palette switch
+        {
+            "Dark" => ("#1A202B", "#DFE6F3"),
+            "Warm" => ("#FAF6EF", "#514435"),
+            "Blue" => ("#EFF6FD", "#294D6E"),
+            _ => ("#F8FAFD", "#2B374D")
+        };
+        MonitorBox.Background = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString(colors.Item1)!;
+        MonitorBox.Foreground = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString(colors.Item2)!;
+        PaletteBox.SelectedItem = palette;
+    }
+    private void PaletteChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (MonitorBox == null || PaletteBox.SelectedItem is not string palette) return;
+        SetPalette(palette); PaletteRequested?.Invoke(palette);
+    }
+    private void OpenLogFolderClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            string path = System.IO.Path.GetFullPath(LogRootBox.Text);
+            System.IO.Directory.CreateDirectory(path);
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true });
+        }
+        catch (Exception ex) { StatusLabel.Text = "无法打开日志目录：" + ex.Message; }
+    }
+    public void BlankNewHost()
+    {
+        _syncing = true;
+        try { HostBox.Text = ""; UserBox.Text = ""; PasswordInput.Clear(); }
+        finally { _syncing = false; }
+        _draft = true; DraftLabel.Text = "新连接";
+    }
+    public bool IsBlankNewHost => HostBox.Text.Length == 0 && PasswordInput.Password.Length == 0;
+    public void SetProbeDraft(string value) { SendBox.Text = value; PasswordInput.Password = value; }
+    public bool HasProbeDraft(string value) => SendBox.Text == value && PasswordInput.Password == value;
+    public async Task<object> EditorProbeAsync()
+    {
+        if (_profiles.Length == 0) throw new InvalidOperationException("History fixture missing.");
+        var profile = _profiles[0];
+        HostBox.SelectedItem = profile;
+        await Task.Delay(50);
+        bool selected = HostBox.Text == profile.Host && NameBox.Text == profile.Name && UserBox.Text == profile.Username && TelnetPortBox.Text == profile.TelnetPort.ToString(CultureInfo.InvariantCulture) && PasswordInput.Password.Length == 0;
+        HostBox.Text = "new-editor.example"; TelnetPortBox.Text = "7891";
+        await _pendingHost;
+        bool manual = TelnetPortBox.Text == "7891";
+        HostBox.Text = "another-editor.example";
+        PasswordInput.Password = "typed-after-host";
+        await _pendingHost;
+        bool suggestion = int.TryParse(TelnetPortBox.Text, out int value) && value > 0 && !_profiles.Any(p => p.TelnetPort == value);
+        bool passwordRetained = PasswordInput.Password == "typed-after-host";
+        var colors = new HashSet<string>();
+        foreach (string palette in ConnectionHistory.Palettes) { SetPalette(palette); colors.Add(MonitorBox.Background.ToString()); }
+        bool palettes = colors.Count == ConnectionHistory.Palettes.Length;
+        return new { ok = selected && manual && suggestion && passwordRetained && palettes, selected, manual, suggestion, passwordRetained, palettes };
+    }
     private void AuthChanged(object sender, SelectionChangedEventArgs e) => DraftChanged(sender, e);
     private async void ApplyClick(object sender, RoutedEventArgs e) => await ApplyDraftAsync();
     private void TrustFingerprintClick(object sender, RoutedEventArgs e)
@@ -132,7 +293,7 @@ public partial class MainWindow : Window
             StatusLabel.Text = "请先连接当前主机以获取其观测指纹，再核对。";
             return;
         }
-        if (MessageBox.Show(this, $"请先与服务器管理员或已有可信 SSH 记录核对：\n\n{snapshot.Config.Host}:{snapshot.Config.Port}\n{snapshot.ObservedHostKey}\n\n确认此指纹属于目标服务器并填入？", "确认服务器主机密钥", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        if (MessageBox.Show(Window.GetWindow(this), $"请先与服务器管理员或已有可信 SSH 记录核对：\n\n{snapshot.Config.Host}:{snapshot.Config.Port}\n{snapshot.ObservedHostKey}\n\n确认此指纹属于目标服务器并填入？", "确认服务器主机密钥", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
         FingerprintBox.Text = snapshot.ObservedHostKey;
         StatusLabel.Text = "已填入核对后的指纹，请点击连接 SSH；密码已保留。";
     }
@@ -157,6 +318,7 @@ public partial class MainWindow : Window
         _connecting = true;
         try
         {
+            await _pendingHost;
             if (int.TryParse(PortBox.Text, out int port) && FingerprintBox.Text.Length == 0)
                 FingerprintBox.Text = HostTrustStore.Load(HostBox.Text.Trim(), port);
             if ((_draft || PasswordInput.Password.Length > 0 || PassphraseInput.Password.Length > 0) && !await ApplyDraftAsync()) return;
@@ -166,7 +328,7 @@ public partial class MainWindow : Window
                 var s = View.Snapshot;
                 bool trusted = HostTrustStore.MatchesOpenSsh(s.Config.Host, s.Config.Port, s.ObservedHostKey);
                 if (!trusted)
-                    trusted = MessageBox.Show(this, $"首次连接服务器 {s.Config.Host}:{s.Config.Port}。\n\n服务器身份：{s.ObservedHostKey}\n\n是否信任并记住此服务器？以后连接无需再次确认。", "首次 SSH 连接", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
+                    trusted = MessageBox.Show(Window.GetWindow(this), $"首次连接服务器 {s.Config.Host}:{s.Config.Port}。\n\n服务器身份：{s.ObservedHostKey}\n\n是否信任并记住此服务器？以后连接无需再次确认。", "首次 SSH 连接", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
                 if (!trusted) { StatusLabel.Text = "未信任服务器，连接已取消。密码保留，可再次连接。"; return; }
                 FingerprintBox.Text = s.ObservedHostKey;
                 if (!await ApplyDraftAsync()) return;
@@ -221,6 +383,11 @@ public partial class MainWindow : Window
         catch (BrokerException ex) { StatusLabel.Text = ex.Message; }
     }
     private void ClearClick(object sender, RoutedEventArgs e) => MonitorBox.Clear();
+    private void ClientsGridSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (sender is DataGrid grid && grid.Columns.Count > 0)
+            grid.Columns[0].Width = new DataGridLength(Math.Max(100, e.NewSize.Width - 254));
+    }
     private static string Escape(string text)
     {
         var output = new StringBuilder();

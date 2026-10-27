@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><IsTestProject>true</IsTestProject><IsPackable>false</IsPackable></PropertyGroup>
+  <PropertyGroup><IsTestProject>true</IsTestProject><IsPackable>false</IsPackable><UseWPF>true</UseWPF></PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../src/SshBroker.Gui/WindowPlacementStore.cs" Link="WindowPlacementStore.cs" />
     <Compile Include="../../src/SshBroker.Gui/HostTrustStore.cs" Link="HostTrustStore.cs" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
     <PackageReference Include="xunit" Version="2.9.2" />

@@ -6,6 +6,7 @@ namespace SshBroker.Core;
 public sealed class CommandDispatcher(BrokerEngine engine)
 {
     public event Action? ShutdownRequested;
+    public event Action<BrokerSnapshot>? Configured;
     public static readonly string[] Commands = ["help", "status", "configure", "connect", "disconnect", "reconnect",
         "policy", "send", "acquire", "release", "client-close", "clients", "resize", "output", "logs", "projection", "wait", "wait-output", "shutdown"];
     public async Task<RpcResponse> ExecuteAsync(RpcRequest request, CancellationToken token = default)
@@ -51,6 +52,7 @@ public sealed class CommandDispatcher(BrokerEngine engine)
             }
             engine.Audit(request.Method, "ok");
             var snapshot = engine.Snapshot();
+            if (request.Method == "configure") Configured?.Invoke(snapshot);
             if (request.Method == "status") result = snapshot;
             else if (request.Method == "clients") result = snapshot.Clients;
             else if (request.Method == "logs") result = new { directory = snapshot.LogDirectory, active = snapshot.Logging, failure = snapshot.LogFailure };

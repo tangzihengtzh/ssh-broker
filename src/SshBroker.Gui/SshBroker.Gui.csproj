@@ -1,4 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><OutputType>WinExe</OutputType><UseWPF>true</UseWPF><AssemblyName>SshBroker</AssemblyName></PropertyGroup>
+  <PropertyGroup><OutputType>WinExe</OutputType><UseWPF>true</UseWPF><UseWindowsForms>true</UseWindowsForms><AssemblyName>SshBroker</AssemblyName><ApplicationIcon>Assets/SshBroker.ico</ApplicationIcon></PropertyGroup>
+  <ItemGroup><Using Remove="System.Windows.Forms"/><Using Remove="System.Drawing"/><Resource Include="Assets/SshBroker.ico"/><Resource Include="Assets/SshBroker.png"/></ItemGroup>
   <ItemGroup><ProjectReference Include="../SshBroker.Core/SshBroker.Core.csproj" /></ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="ModernWpfUI" Version="0.9.6" />
+  </ItemGroup>
 </Project>

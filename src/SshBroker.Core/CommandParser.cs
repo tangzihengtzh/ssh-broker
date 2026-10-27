@@ -26,13 +26,18 @@ public static class CommandParser
             if (args.Count != 2) throw Invalid("policy requires shared, single, or readonly.");
             return RpcRequest.Create(method, new { value = args[1] });
         }
-        if (method is "status" or "help" or "connect" or "disconnect" or "reconnect" or "clients" or "logs" or "projection" or "shutdown")
+        if (method is "status" or "help" or "connect" or "disconnect" or "reconnect" or "clients" or "logs" or "projection" or "shutdown" or "sessions")
         {
             if (args.Count != 1) throw Invalid(method + " does not accept arguments.");
             return RpcRequest.Create(method);
         }
         var options = ParseOptions(args.Skip(1).ToArray());
-        if (method == "configure")
+        if (method is "session-create" or "session-close" or "session-rename" or "history" or "palette")
+        {
+            CheckAllowed(options, "id", "name", "host", "port", "exclude", "value");
+            foreach (var (name, value) in options) values[name] = name == "port" ? Number(value) : value;
+        }
+        else if (method == "configure")
         {
             foreach (var (name, text) in options)
             {

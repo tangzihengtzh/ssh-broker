@@ -8,14 +8,128 @@ namespace SshBroker.Gui;
 public partial class App : Application
 {
     private BrokerRuntime? _runtime;
+    private WorkspaceRuntime? _workspace;
+    private TrayHost? _tray;
+    private WorkspaceWindow? _mainWorkspace;
+    private bool _exitRequested;
+    private void ExitImmediately()
+    {
+        if (_mainWorkspace != null) _mainWorkspace.CloseToTrayEnabled = false;
+        _tray?.Dispose(); _tray = null;
+        Shutdown();
+    }
+    private async Task ExitFromTrayAsync(Func<RpcRequest, Task<RpcResponse>> call, WorkspaceWindow window)
+    {
+        if (_exitRequested) return;
+        _exitRequested = true;
+        try
+        {
+            var response = await call(RpcRequest.Create("sessions"));
+            var sessions = response.Result is JsonElement element ? element.Deserialize<WorkspaceSession[]>(Wire.Json) : Wire.Element(response.Result).Deserialize<WorkspaceSession[]>(Wire.Json);
+            if (sessions?.Any(s => s.Snapshot.State is "connected" or "connecting") == true)
+            {
+                window.ShowFromTray();
+                if (MessageBox.Show(window, "退出程序将断开所有现有连接，是否继续？", "退出 SSH Broker", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            }
+            if (_workspace == null) await call(RpcRequest.Create("shutdown"));
+            ExitImmediately();
+        }
+        catch (Exception) { ExitImmediately(); }
+        finally { _exitRequested = false; }
+    }
+    private async Task StartWorkspaceAsync(Dictionary<string, string> options)
+    {
+        string pipe = options.GetValueOrDefault("pipe", "SshBrokerV2");
+        string directory = options.GetValueOrDefault("data-directory", Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SshBroker", "workspace"));
+        Func<RpcRequest, Task<RpcResponse>> call;
+        try
+        {
+            var existing = await RpcClient.CallAsync(pipe, RpcRequest.Create("sessions"), 700);
+            if (!existing.Ok) throw new InvalidOperationException("此管道不是多会话工作区，请指定新的 --pipe 名称。");
+            if (!options.ContainsKey("probe-output"))
+            {
+                var shown = await RpcClient.CallAsync(pipe, RpcRequest.Create("show-window"), 2000);
+                if (shown.Ok && Wire.Element(shown.Result).GetProperty("shown").GetBoolean()) { Shutdown(); return; }
+            }
+            call = request => RpcClient.CallAsync(pipe, request, 150000);
+        }
+        catch (Exception ex) when (ex is IOException or OperationCanceledException or TimeoutException)
+        {
+            _workspace = new(pipe, directory); _workspace.Start();
+            if (!options.ContainsKey("probe-output"))
+                _workspace.ShowWindowRequested += () => Dispatcher.BeginInvoke(() => _mainWorkspace?.ShowFromTray());
+            call = request => _workspace.ExecuteAsync(request);
+            _ = _workspace.Shutdown.ContinueWith(_ => Dispatcher.BeginInvoke(ExitImmediately));
+        }
+        AppTheme.Apply("Light");
+        var window = new WorkspaceWindow(pipe, call, directory); MainWindow = window;
+        if (options.TryGetValue("probe-output", out var output))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            bool trayProbe = options.GetValueOrDefault("probe-tray", "false") == "true";
+            if (trayProbe)
+            {
+                _mainWorkspace = window;
+                _tray = new TrayHost(window.ShowFromTray, () => { }, ExitImmediately);
+                window.CloseToTrayEnabled = true;
+            }
+            if (options.GetValueOrDefault("probe-ui", "false") == "true")
+            {
+                if (_workspace == null) throw new InvalidOperationException("UI smoke requires an isolated owned workspace.");
+                if (options.TryGetValue("preview-directory", out var preview))
+                    await window.RenderPreviewAsync(Path.Combine(preview, "welcome.png"), 1332, 888);
+                var report = await window.UiSmokeAsync();
+                if (options.TryGetValue("preview-directory", out preview))
+                {
+                    foreach (string theme in ConnectionHistory.Palettes)
+                    {
+                        window.PreviewTheme(theme);
+                        await window.RenderPreviewAsync(Path.Combine(preview, "session-" + theme + ".png"), 1332, 888);
+                    }
+                    window.PreviewTheme("Light");
+                    await window.RenderPreviewAsync(Path.Combine(preview, "session.png"), 1332, 888);
+                    await window.RenderPreviewAsync(Path.Combine(preview, "session-compact.png"), 1072, 688);
+                }
+                await File.WriteAllTextAsync(Path.GetFullPath(output), JsonSerializer.Serialize(report, Wire.Json));
+                window.Stop(); Shutdown(); return;
+            }
+            var deadline = DateTime.UtcNow.AddSeconds(int.Parse(options.GetValueOrDefault("probe-seconds", "20")));
+            window.Begin();
+            while (DateTime.UtcNow < deadline)
+            {
+                var report = await window.ProbeAsync();
+                if (trayProbe && !window.IsInBackground && window.ConnectedTargetCount >= 2)
+                {
+                    window.Close();
+                    if (!window.IsInBackground) throw new InvalidOperationException("Close did not hide to tray.");
+                    report = await window.ProbeAsync();
+                }
+                string path = Path.GetFullPath(output); Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                await File.WriteAllTextAsync(path + ".tmp", JsonSerializer.Serialize(report, Wire.Json)); File.Move(path + ".tmp", path, true);
+                await Task.Delay(250);
+            }
+            window.Stop(); Shutdown();
+        }
+        else
+        {
+            _mainWorkspace = window;
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            _tray = new TrayHost(window.ShowFromTray,
+                () => { try { HelpDocument.Open(); } catch (Exception ex) { MessageBox.Show(ex.Message, "使用帮助"); } },
+                () => _ = ExitFromTrayAsync(call, window));
+            window.CloseToTrayEnabled = true;
+            window.Show(); window.Begin();
+        }
+    }
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
         try
         {
             var options = CommandParser.ParseOptions(e.Args);
-            if (options.Keys.Any(k => k is not ("pipe" or "probe-output" or "probe-seconds" or "probe-own" or "probe-form" or "probe-login")))
+            if (options.Keys.Any(k => k is not ("pipe" or "probe-output" or "probe-seconds" or "probe-own" or "probe-form" or "probe-login" or "probe-workspace" or "probe-ui" or "probe-tray" or "preview-directory" or "data-directory")))
                 throw new BrokerException("invalid_params", "GUI accepts --pipe, --probe-output and --probe-seconds.");
+            if (!options.ContainsKey("probe-output") || options.ContainsKey("probe-workspace")) { await StartWorkspaceAsync(options); return; }
             string pipe = options.GetValueOrDefault("pipe", "SshBroker");
             Func<RpcRequest, Task<RpcResponse>> call;
             try
@@ -31,7 +145,7 @@ public partial class App : Application
                 call = request => _runtime.Dispatcher.ExecuteAsync(request);
                 _ = _runtime.Shutdown.ContinueWith(_ => Dispatcher.BeginInvoke(() => Shutdown()));
             }
-            var window = new MainWindow(pipe, call); MainWindow = window;
+            var window = new SessionView(pipe, call);
             if (options.TryGetValue("probe-output", out var output))
             {
                 ShutdownMode = ShutdownMode.OnExplicitShutdown;
@@ -70,7 +184,7 @@ public partial class App : Application
                 }
                 window.StopPolling(); Shutdown();
             }
-            else { window.Show(); window.BeginPolling(); }
+            else { throw new InvalidOperationException("Probe output required."); }
         }
         catch (Exception ex)
         {
@@ -85,7 +199,14 @@ public partial class App : Application
     }
     protected override void OnExit(ExitEventArgs e)
     {
+        _tray?.Dispose(); _tray = null;
+        if (_workspace != null) Task.Run(async () => await _workspace.DisposeAsync()).GetAwaiter().GetResult();
         if (_runtime != null) Task.Run(async () => await _runtime.DisposeAsync()).GetAwaiter().GetResult();
         base.OnExit(e);
+    }
+    protected override void OnSessionEnding(SessionEndingCancelEventArgs e)
+    {
+        if (_mainWorkspace != null) _mainWorkspace.CloseToTrayEnabled = false;
+        base.OnSessionEnding(e);
     }
 }

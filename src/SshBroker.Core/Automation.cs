@@ -33,14 +33,15 @@ public sealed class JsonLineReader(Stream stream)
 public sealed class PipeRpcServer : IAsyncDisposable
 {
     private readonly string _pipe;
-    private readonly CommandDispatcher _dispatcher;
+    private readonly Func<RpcRequest, CancellationToken, Task<RpcResponse>> _execute;
     private readonly CancellationTokenSource _stop = new();
     private readonly ConcurrentDictionary<long, (NamedPipeServerStream Pipe, Task Task)> _clients = new();
     private readonly FileStream _guard;
     private Task? _accept; private long _id;
-    public PipeRpcServer(string pipe, CommandDispatcher dispatcher)
+    public PipeRpcServer(string pipe, CommandDispatcher dispatcher) : this(pipe, dispatcher.ExecuteAsync) { }
+    public PipeRpcServer(string pipe, Func<RpcRequest, CancellationToken, Task<RpcResponse>> execute)
     {
-        ValidateName(pipe); _pipe = pipe; _dispatcher = dispatcher;
+        ValidateName(pipe); _pipe = pipe; _execute = execute;
         var directory = Path.Combine(Path.GetTempPath(), "SshBroker-ipc"); Directory.CreateDirectory(directory);
         var name = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(pipe)));
         try { _guard = File.Open(Path.Combine(directory, name + ".lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
@@ -86,10 +87,10 @@ public sealed class PipeRpcServer : IAsyncDisposable
                     var request = JsonSerializer.Deserialize<RpcRequest>(line, Wire.Json);
                     if (request == null || string.IsNullOrEmpty(request.Id) || string.IsNullOrEmpty(request.Method))
                         throw new JsonException();
-                    response = await _dispatcher.ExecuteAsync(request, _stop.Token).ConfigureAwait(false);
+                    response = await _execute(request, _stop.Token).ConfigureAwait(false);
                 }
                 catch (JsonException)
-                { response = await _dispatcher.ExecuteAsync(RpcRequest.Create("__invalid_json__"), _stop.Token).ConfigureAwait(false); response = response with { Id = "", Code = "invalid_request", Message = "Invalid JSON request." }; }
+                { response = await _execute(RpcRequest.Create("__invalid_json__"), _stop.Token).ConfigureAwait(false); response = response with { Id = "", Code = "invalid_request", Message = "Invalid JSON request." }; }
                 var bytes = JsonSerializer.SerializeToUtf8Bytes(response, Wire.Json);
                 if (bytes.Length > Wire.MaxLineBytes) bytes = JsonSerializer.SerializeToUtf8Bytes(response with
                     { Ok = false, Code = "response_too_large", Message = "Use a smaller output page.", Result = null }, Wire.Json);

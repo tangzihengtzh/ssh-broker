@@ -1,4 +1,4 @@
-param([string]$Pipe = 'SshBroker')
+param([Parameter(Mandatory)][string]$Pipe)
 $ErrorActionPreference = 'Stop'
 $cli = Join-Path (Split-Path -Parent $PSScriptRoot) 'artifacts\app\sshctl.exe'
 $statusJson = & $cli --pipe $Pipe status

@@ -1,91 +1,75 @@
-# SshBroker
+# SSH Broker V2.0.0
 
 **English** | [简体中文](README.zh-CN.md)
 
-Share one remote SSH terminal between people and automation agents on Windows. Connect MobaXterm through local Telnet, and use `sshctl` or the named-pipe API to control the same shell.
+A multi-device SSH workspace for Windows. Manage virtual machines and Linux boards in separate tabs, and share each remote terminal with local terminal clients and automation tools.
 
-A standalone companion to [SerialBroker](https://github.com/tangzihengtzh/serial-broker), built with C# / .NET 8, WPF, and SSH.NET.
+[Download V2.0.0](https://github.com/tangzihengtzh/ssh-broker/releases/tag/V2.0.0) · [Previous version](https://github.com/tangzihengtzh/ssh-broker/tree/main) · [Usage guide](docs/USER-GUIDE.html)
 
-## Features
+V2.0.0 is published on the **release/V2.0.0** branch and **V2.0.0** tag. The previous `main` branch and its history are preserved.
 
-- One SSH PTY with shared output, working directory, environment, and terminal state.
-- Local Telnet on `127.0.0.1:7001`, available only after the SSH PTY is ready.
-- Shared writing by default; read-only and single-writer policies are available through the GUI dropdown or CLI.
-- Password and private-key authentication. The GUI remembers approved server identities and reuses matching Windows OpenSSH trust records. Unknown servers require a first-use confirmation, without manual fingerprint entry. Changed remembered keys are rejected.
-- CLI commands, line-based scripts, a REPL, JSON input/output, output watching, and a current-user named-pipe API.
-- SSH disconnect, shell closure, write failure, and health timeout handling. Reconnect never automatically replays commands.
-- Per-session event and raw RX/TX logs, bounded buffers, and slow-client isolation.
+## What's new
 
-## Build and run
+- **Multiple SSH targets:** independent tabs, connections, Telnet ports, output, write policies and CLI endpoints. Switching or hiding the window keeps other targets running.
+- **Connection history:** an editable host dropdown recalls host, SSH port, username, device name and last Telnet port. Passwords are never saved. Names may repeat and support emoji.
+- **Port suggestions:** new targets avoid historical ports, other workspace targets and current listeners. Recalled and suggested values remain editable.
+- **ModernWpf interface:** rounded surfaces, aligned fields and controls, with Light, Dark, Warm and Blue themes across the entire interface and monitor.
+- **Persistent window layout:** window size, position, maximized state and theme are restored on startup. Historical targets are not automatically reconnected.
+- **Tray operation:** Close / Alt+F4 hides the window while SSH sessions stay alive. Click the tray icon to restore; use its Exit command to quit. Active connections require exit confirmation.
+- **Original app icon and separate help:** the executable, window and tray share one icon; terminal and automation instructions live in a local help document rather than instructional labels in the main interface.
 
-Requirements: Windows x64, .NET SDK 8.0.400 or a compatible newer 8.0.4xx SDK, and Python 3.10+ for integration tests.
+## Install and start
+
+1. Download **SshBroker-V2.0.0-win-x64.zip** from the release page and extract it into a new folder. Do not replace an older installation.
+2. Install the **.NET 8 Desktop Runtime (Windows x64)** if it is not already available.
+3. Run **SshBroker.exe**. Keep all DLL, JSON and documentation files beside the executables. Administrator privileges are not required.
+4. Create a connection, fill in the SSH endpoint and credentials, then connect. Unknown server identities require first-use confirmation; approved identities are remembered.
+5. A Telnet-capable terminal can connect to `127.0.0.1` and that target's configured local port. Use **Help** for MobaXterm / PuTTY examples and automation instructions.
+
+The default first port is 7001 when available; subsequent suggestions avoid conflicts. Each target shares one SSH PTY between its terminal clients and CLI, including the working directory and environment. Input can interleave under the default shared-write policy; single-writer and read-only modes are also available.
+
+To actually quit, right-click the tray icon and choose **Exit**. The icon may be in the Windows hidden-icons area. Closing an individual target tab disconnects that target; closing the whole window hides it to the tray.
+
+## Automation
+
+The default workspace pipe is `SshBrokerV2`. List or create a target, then use the returned `pipe` to address it independently of the selected GUI tab:
+
+```powershell
+./sshctl.exe sessions
+./sshctl.exe session-create --name "Linux board"
+./sshctl.exe --pipe SESSION_PIPE status
+./sshctl.exe --pipe SESSION_PIPE send --text "pwd" --cr
+./sshctl.exe --pipe SESSION_PIPE watch
+```
+
+Start a headless workspace with `SshBroker.Host.exe --workspace true`. CLI connection configuration uses an explicit verified host-key fingerprint, with credentials supplied through environment variables or JSON stdin. GUI and CLI mutations share the same engine and revisioned snapshots. Scripts, a REPL, output cursors and JSON responses are supported; the command language is not a full Tcl interpreter.
+
+See [the full API](docs/AUTOMATION.md) and [workspace example](examples/workspace.ps1). Legacy single-target Host mode remains available with an explicit pipe selection.
+
+## Settings, logs and lifecycle
+
+- History and theme: `%LOCALAPPDATA%/SshBroker/workspace/preferences.json`.
+- Window placement: `window.json` in the same directory. `--data-directory PATH` selects a separate settings directory.
+- Passwords and private-key passphrases stay in memory and are not returned in API snapshots or written to history.
+- Per-connection logs contain `events.jsonl`, `rx.bin` and `tx.bin`. Raw terminal logs may contain sensitive session content. The folder button opens the log root.
+- One target's SSH failure does not stop other targets. Reconnection is explicit and never replays old input.
+- Explicit application exit disconnects the workspace; system logoff / shutdown is not intercepted as a tray hide request.
+
+## Build and verification
+
+Stack: C# / .NET 8, WPF, ModernWpfUI 0.9.6 and SSH.NET 2026.0.0. Use Windows x64, .NET SDK 8.0.400 or a compatible newer 8.0.4xx SDK, and Python 3.10+ for the SSH fixtures.
 
 ```powershell
 python -m pip install -r tests/requirements.txt
-./scripts/build.ps1 -Package
-./scripts/test.ps1 -SkipBuild -Packaged
+./scripts/build-release.ps1
 ```
 
-The complete app is published to `artifacts/app/`. The archive is `artifacts/SshBroker-0.1.0-win-x64.zip`. Build products are not committed to Git.
+The release directory is `artifacts/V2.0.0/app/`; the archive is `artifacts/SshBroker-V2.0.0-win-x64.zip`. Source control excludes build products, session logs, temporary test keys and machine-specific reports. Pillow is only needed to regenerate the icon assets, not to build or run the application.
 
-| Executable | Purpose |
-| --- | --- |
-| `SshBroker.exe` | WPF GUI; creates a service or attaches to an existing service on the same pipe. |
-| `SshBroker.Host.exe` | Headless service for scripts and agents. |
-| `sshctl.exe` | Command-line client. |
+Functional verification covers concurrent SSH targets, isolated Telnet routing, history and theme persistence, window restoration, GUI / CLI consistency, and continued transfer after window close. See [test results](docs/TEST-RESULTS.md) and [architecture](docs/MULTI-SESSION.md). Tests use isolated local SSH fixtures rather than changing the user's devices.
 
-The framework-dependent package requires the **.NET 8 Desktop Runtime**. Keep all companion DLL and JSON files beside the executables. Administrator privileges are not required; run the GUI and CLI as the same Windows user and privilege level.
+The GUI monitor escapes control characters; terminal clients handle full terminal rendering. SFTP/SCP, jump hosts, SSH agent integration, interactive MFA and separate remote shells per downstream client are outside this version's scope. Loopback Telnet has no authentication; the control pipe is limited to the current Windows user.
 
-## Quick start
+## License and contributors
 
-1. Open `SshBroker.exe` and enter the SSH host, port, username, and password. Private-key authentication is available separately.
-2. Click **Connect SSH**. Confirm the server identity on first use if it is not already trusted. Passwords remain in process memory and are never returned by the API.
-3. Wait for `connected`, then create a **Telnet** session in MobaXterm to **127.0.0.1**, port **7001**. Use character mode with local line editing disabled.
-4. Use `sshctl.exe` to operate the same terminal. The default control pipe is `SshBroker`.
-
-Every client shares the same remote shell. Concurrent command input can interleave; choose the single-writer policy when exclusive input is needed.
-
-## Headless automation
-
-Start `SshBroker.Host.exe`, then configure and connect using the CLI. Set `SSHBROKER_PASSWORD` in the calling process. Replace the example host and fingerprint with your target and its verified host key. Headless CLI connections require an explicit pin.
-
-```powershell
-./artifacts/app/sshctl.exe configure --host 192.0.2.10 --port 22 --user user --password-env SSHBROKER_PASSWORD --fingerprint SHA256:VERIFIED_FINGERPRINT
-./artifacts/app/sshctl.exe connect
-./artifacts/app/sshctl.exe status
-./artifacts/app/sshctl.exe send --client agent --text "pwd" --cr
-./artifacts/app/sshctl.exe watch
-```
-
-Use environment variables or JSON on stdin for credentials, rather than ordinary command-line password arguments. Settings and credentials are process-local; approved GUI server identities are saved under `%LOCALAPPDATA%/SshBroker/known-hosts/`.
-
-`sshctl --script file.sshb` executes one command per line and stops at the first error. `--script -` reads stdin; `--repl` continues interactively. Quoting, literal braces, blank lines, and comments are supported. This is a small command language, not a full Tcl interpreter; use PowerShell or Python for variables, conditions, and loops.
-
-See the [automation reference](docs/AUTOMATION.md) and [PowerShell example](examples/session.ps1). Global options such as `--pipe NAME` must precede the command.
-
-## GUI / CLI consistency
-
-All mutations go through the same `CommandDispatcher` and `BrokerEngine`. Every response includes an authoritative snapshot with revision, configuration, connection state, policy, counters, log state, and errors. The GUI refreshes approximately every 250 ms.
-
-The configuration form is an explicit draft until applied. CLI configuration changes refresh both the editor and the status display. Snapshots expose only presence flags for secrets. A successful `send` confirms SSH transport acceptance, not remote command completion; use output cursors and `wait-output` to observe results.
-
-## Disconnects, logs, and limits
-
-- Failures enter `faulted`, close SSH/Telnet sessions, and leave the control API available. Reconnect does not replay input.
-- The default health probe executes `true` every two seconds with a four-second timeout. An empty `healthCommand` disables application-level probing.
-- Each connection creates `events.jsonl`, `rx.bin`, and `tx.bin`, with a default 16 MiB limit per file. Logging failure is reported without stopping forwarding.
-- Authentication arguments are excluded from event logs and snapshots. Raw terminal logs can contain sensitive session content.
-- Sends are limited to 4096 bytes, with at most 128 pending writes. Revoked queued requests are not retried. Failed writes may have partially reached the server.
-- Telnet binds to loopback and has no authentication. Other local processes may connect. The control pipe is restricted to the current Windows user; logical client IDs coordinate access and are not security identities.
-
-## Tests and scope
-
-The suite covers CLI contracts, real WPF bindings, authentication, shared PTY behavior, write policies, abrupt disconnects, stalled handshakes, network blackholes, log failures, queue revocation, and slow clients. Fixtures use isolated local ports and temporary credentials, without changing the system SSH server or firewall.
-
-See [measured results](docs/TEST-RESULTS.md), [login verification](docs/SIMPLE-LOGIN-TEST.md), and [architecture](docs/DESIGN.md). Supplementary real Ubuntu VM testing verified password-only GUI login, character-by-character Telnet input, shared output, and compiling/running a C Hello World program.
-
-The GUI monitor escapes control characters; MobaXterm provides full terminal rendering. SFTP/SCP, jump hosts, SSH agent integration, interactive MFA, and independent shells per downstream client are not included. Broad server compatibility, long-duration stress, and all monitor/DPI combinations remain outside the current verification scope.
-
-## License and contributions
-
-[MIT](LICENSE). Issues and pull requests are welcome. OpenAI Codex assisted development and is credited through Git commit co-author trailers. See [third-party notices](THIRD-PARTY-NOTICES.md).
+[MIT](LICENSE). The previous license and repository history are preserved. OpenAI Codex assisted development and is credited through Git co-author trailers. See [third-party notices](THIRD-PARTY-NOTICES.md).

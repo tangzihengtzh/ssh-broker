@@ -1,5 +1,23 @@
 # 自动化接口参考
 
+## V2.0.0 多会话工作区
+
+GUI 或 `SshBroker.Host.exe --workspace true` 提供工作区根管道，默认 `SshBrokerV2`。CLI 默认也使用该管道。根管道支持：
+
+| 命令 | 参数 | 返回 / 行为 |
+|---|---|---|
+| sessions / status | 无 | result 为目标列表：id、pipe、name、snapshot。根响应 envelope.snapshot 不代表某一目标；读取 result 中的每目标快照。 |
+| session-create | --name 名称（可选） | 创建空白、未连接目标，返回描述与建议端口；GUI 同步新增标签。 |
+| session-rename | --id ID --name 名称 | 更新备注，允许重名；显示在 GUI 标签。 |
+| session-close | --id ID | 断开并移除对应目标；其它目标不受影响。 |
+| history | --host HOST --port SSHPORT --exclude SESSION_ID（均可选） | result.preferences.history / palette、suggestedPort、failure；exclude 从当前会话端口排除集合中移除指定目标。 |
+| palette | --value Light/Dark/Warm/Blue | 更新全局监视区风格并持久保存；GUI 自动同步。 |
+| shutdown | 无 | 停止整个工作区，清理全部目标。 |
+
+先调用 sessions/session-create，再使用 `sshctl --pipe 返回的pipe` 执行以下原有目标命令。GUI 当前观察哪个标签不影响 CLI 路由。工作区会自动记录单目标 CLI 的 configure 结果到历史，不保存认证凭据。
+
+单目标 `SshBroker.Host.exe` 模式仍保留原默认管道 `SshBroker`，请显式选择；它不是工作区根端点。
+
 ## 入口与全局选项
 
 `sshctl [--pipe NAME] [--rpc-timeout MS] COMMAND [OPTIONS]`

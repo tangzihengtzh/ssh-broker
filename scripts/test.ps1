@@ -10,9 +10,14 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Unit tests failed: $LASTEXITCODE" }
     $integrationArgs = @('tests/integration.py','--configuration',$Configuration)
     if ($Packaged) { $integrationArgs += @('--app-directory','artifacts/app') }
+    $integrationArgs += @('--cases','defaults_and_contract','password_cli_and_logs','telnet_shared_pty','policy_and_single_writer','gui_real_bindings','gui_owns_service')
     & python @integrationArgs 2>&1 | Tee-Object -FilePath $record -Append
     if ($LASTEXITCODE -ne 0) { throw "Integration tests failed: $LASTEXITCODE" }
-    & python scripts/update-test-report.py 2>&1 | Tee-Object -FilePath $record -Append
+    if (-not $Packaged) { throw 'Workspace functional tests require a published package; build with -Package and use -Packaged.' }
+    & python tests/multi_session.py artifacts/app 2>&1 | Tee-Object -FilePath $record -Append
+    if ($LASTEXITCODE -ne 0) { throw "Workspace tests failed: $LASTEXITCODE" }
+    & (Join-Path $PSScriptRoot 'test-workspace-ui.ps1') | Tee-Object -FilePath $record -Append
+    & python scripts/update-functional-report.py 2>&1 | Tee-Object -FilePath $record -Append
     if ($LASTEXITCODE -ne 0) { throw "Test report generation failed: $LASTEXITCODE" }
     if ($Packaged) { & (Join-Path $PSScriptRoot 'package.ps1') }
     'TEST_EXIT_CODE=0' | Tee-Object -FilePath $record -Append

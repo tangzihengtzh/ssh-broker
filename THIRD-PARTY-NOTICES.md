@@ -2,6 +2,9 @@
 
 The framework-dependent application bundle includes these MIT-licensed packages:
 
+- ModernWpfUI 0.9.6 — https://github.com/Kinnara/ModernWpf
+  Copyright (c) Yimeng Wu and contributors. Supplies Fluent control styles and theme resources.
+
 - SSH.NET 2026.0.0 — https://github.com/sshnet/SSH.NET
   Copyright (c) Renci, Oleg Kapeljushnik, Gert Driesen and contributors; Copyright © Renci 2010–2026.
 - BouncyCastle.Cryptography 2.7.0 — https://www.bouncycastle.org/
