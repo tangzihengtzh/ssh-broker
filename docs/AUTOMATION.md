@@ -1,8 +1,10 @@
 # 自动化接口参考
 
+V2.0.1新增 configure 参数 `--reconnect-attempts N`（0..20，默认3，0关闭）和 `--reconnect-delay MS`（200..60000，默认2000）。JSON 字段为 reconnectAttempts、reconnectDelayMs。意外断线进入 reconnecting；主动断开取消重试。状态额外包含 autoReconnectActive、reconnectAttempt、reconnectSuccesses、lastDisconnect、lastDisconnectAt。恢复后保留历史，不重放指令，具体行为见 [RECONNECT.md](RECONNECT.md)。
+
 ## V2.0.0 多会话工作区
 
-GUI 或 `SshBroker.Host.exe --workspace true` 提供工作区根管道，默认 `SshBrokerV2`。CLI 默认也使用该管道。根管道支持：
+GUI 或 `SshBroker.Host.exe --workspace true` 提供工作区根管道，默认 `SshBrokerReconnect`。CLI 默认也使用该管道。根管道支持：
 
 | 命令 | 参数 | 返回 / 行为 |
 |---|---|---|

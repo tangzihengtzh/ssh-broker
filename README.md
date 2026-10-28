@@ -1,75 +1,85 @@
-# SSH Broker V2.0.0
+# SSH Broker V2.0.1
 
-**English** | [简体中文](README.zh-CN.md)
+**简体中文** | [English](README.en.md)
 
-A multi-device SSH workspace for Windows. Manage virtual machines and Linux boards in separate tabs, and share each remote terminal with local terminal clients and automation tools.
+Windows 多设备 SSH 工作区：同时管理虚拟机、Linux 开发板等远端目标，让终端用户与自动化工具共享对应的远端会话。
 
-[Download V2.0.0](https://github.com/tangzihengtzh/ssh-broker/releases/tag/V2.0.0) · [V1.0.0 archive](https://github.com/tangzihengtzh/ssh-broker/tree/V1.0.0) · [Usage guide](docs/USER-GUIDE.html)
+[下载 V2.0.1](https://github.com/tangzihengtzh/ssh-broker/releases/tag/V2.0.1) · [使用帮助](docs/USER-GUIDE.html) · [自动化接口](docs/AUTOMATION.md) · [V2.0.0](https://github.com/tangzihengtzh/ssh-broker/releases/tag/V2.0.0) · [V1.0.0](https://github.com/tangzihengtzh/ssh-broker/releases/tag/V1.0.0)
 
-The **main** branch tracks the latest version. V2.0.0 is preserved by the **V2.0.0** tag; the previous version is archived under **V1.0.0**, with its original files and history intact.
+## 界面预览
 
-## What's new
+明亮主题欢迎页：
 
-- **Multiple SSH targets:** independent tabs, connections, Telnet ports, output, write policies and CLI endpoints. Switching or hiding the window keeps other targets running.
-- **Connection history:** an editable host dropdown recalls host, SSH port, username, device name and last Telnet port. Passwords are never saved. Names may repeat and support emoji.
-- **Port suggestions:** new targets avoid historical ports, other workspace targets and current listeners. Recalled and suggested values remain editable.
-- **ModernWpf interface:** rounded surfaces, aligned fields and controls, with Light, Dark, Warm and Blue themes across the entire interface and monitor.
-- **Persistent window layout:** window size, position, maximized state and theme are restored on startup. Historical targets are not automatically reconnected.
-- **Tray operation:** Close / Alt+F4 hides the window while SSH sessions stay alive. Click the tray icon to restore; use its Exit command to quit. Active connections require exit confirmation.
-- **Original app icon and separate help:** the executable, window and tray share one icon; terminal and automation instructions live in a local help document rather than instructional labels in the main interface.
+![SSH Broker 明亮主题欢迎页](docs/images/welcome.png)
 
-## Install and start
+暗色主题多目标工作区：
 
-1. Download **SshBroker-V2.0.0-win-x64.zip** from the release page and extract it into a new folder. Do not replace an older installation.
-2. Install the **.NET 8 Desktop Runtime (Windows x64)** if it is not already available.
-3. Run **SshBroker.exe**. Keep all DLL, JSON and documentation files beside the executables. Administrator privileges are not required.
-4. Create a connection, fill in the SSH endpoint and credentials, then connect. Unknown server identities require first-use confirmation; approved identities are remembered.
-5. A Telnet-capable terminal can connect to `127.0.0.1` and that target's configured local port. Use **Help** for MobaXterm / PuTTY examples and automation instructions.
+![SSH Broker 暗色主题双目标工作区](docs/images/workspace.png)
 
-The default first port is 7001 when available; subsequent suggestions avoid conflicts. Each target shares one SSH PTY between its terminal clients and CLI, including the working directory and environment. Input can interleave under the default shared-write policy; single-writer and read-only modes are also available.
+图片来自实际 WPF 界面的离屏渲染，使用隔离的本地 SSH 演示数据，不包含真实设备或用户认证信息。
 
-To actually quit, right-click the tray icon and choose **Exit**. The icon may be in the Windows hidden-icons area. Closing an individual target tab disconnects that target; closing the whole window hides it to the tray.
+## V2.0.1 更新
 
-## Automation
+- **有次数限制的自动重连：** 已建立的 SSH 连接意外中断时，默认最多重试 **3 次**、每次间隔 **2 秒**，可在连接设置中调整或关闭。
+- **共享终端和历史保留：** 恢复期间尽量保持本机 Telnet 连接，原终端可以继续显示先前内容；新接入终端回放最近最多 **512 KiB** 输出，GUI 的输出游标不重置。
+- **输入不补发：** 断线期间的输入被拒绝，不缓存等待执行。主动断开、关闭目标或退出程序会取消正在等待或建立中的重连。
+- **异常诊断：** 记录原始断连原因、异常类型、发生时间、连接时长、收发计数和每次重连结果；成功恢复后仍可查询上次断连原因。
+- **连续闪断保护：** 短时间反复连接又断开会共享重试预算，避免无限循环。认证失败或主机身份不匹配时停止自动恢复。
 
-The default workspace pipe is `SshBrokerV2`. List or create a target, then use the returned `pipe` to address it independently of the selected GUI tab:
+**重连成功是新的远端 SSH 会话，不会恢复原进程、工作目录、环境变量或正在执行的命令。** 需要远端进程持续运行时，应另行使用 tmux/screen 等远端会话工具。
+
+## 已有功能
+
+- 多目标标签页：独立 SSH 连接、Telnet 端口、写入策略、输出和 CLI 管道，切换标签不影响其它连接。
+- 可编辑的 IP 历史下拉框：记住地址、SSH 端口、用户名、备注和上次 Telnet 端口，不保存密码；新目标建议避开冲突的端口。
+- ModernWpf 圆角界面：明亮、暗色、暖色、淡蓝四种全局主题，日志区域同步切换。
+- 窗口状态记忆：恢复上次大小、位置、最大化状态和主题，不自动连接历史设备。
+- 托盘驻留：关闭主窗口或 Alt+F4 只隐藏，连接继续工作；托盘菜单提供恢复窗口、帮助和显式退出。
+- 原创图标、独立本地帮助、原始 RX/TX 与事件日志，以及 GUI/CLI 共用的权威状态快照。
+
+## 安装与升级
+
+1. 从 Release 下载 **SshBroker-V2.0.1-win-x64.zip**，解压到独立目录。
+2. 准备 **.NET 8 Desktop Runtime（Windows x64）**，无需管理员权限。
+3. 运行 **SshBroker.exe**，保留同目录全部 DLL、JSON 和文档，不能只复制一个 EXE。
+4. 新建连接，填写目标地址、SSH 端口、账号和认证凭据，再连接；首次遇到未知服务器身份时确认一次。
+5. 外部终端通过 Telnet 连接 `127.0.0.1` 和对应标签的本机端口。具体终端和自动化用法见软件“帮助”。
+
+升级时请自行在合适时间从托盘**显式退出旧程序**后再启动新版；不要把文件覆盖到仍在运行的目录。旧进程里的活动连接不能转移到新进程。
+
+本版沿用已验证重连版的独立工作区：默认管道为 `SshBrokerReconnect`，数据目录为 `%LOCALAPPDATA%\SshBroker\reconnect-preview\workspace`，避免接管 V2.0.0 的 `SshBrokerV2` 实例。历史、主题和窗口偏好保存在该目录，密码只在当前进程内存中保留。
+
+## 自动化
+
+先列出或创建目标，再使用返回的 `pipe` 操作对应设备，路由不依赖 GUI 当前选中的标签：
 
 ```powershell
 ./sshctl.exe sessions
-./sshctl.exe session-create --name "Linux board"
+./sshctl.exe session-create --name "Linux 开发板"
 ./sshctl.exe --pipe SESSION_PIPE status
 ./sshctl.exe --pipe SESSION_PIPE send --text "pwd" --cr
 ./sshctl.exe --pipe SESSION_PIPE watch
 ```
 
-Start a headless workspace with `SshBroker.Host.exe --workspace true`. CLI connection configuration uses an explicit verified host-key fingerprint, with credentials supplied through environment variables or JSON stdin. GUI and CLI mutations share the same engine and revisioned snapshots. Scripts, a REPL, output cursors and JSON responses are supported; the command language is not a full Tcl interpreter.
+配置自动重连可使用 `configure --reconnect-attempts N --reconnect-delay MS`，次数为 0 时关闭。JSON 对应 `reconnectAttempts`、`reconnectDelayMs`。新状态 `reconnecting` 及 `autoReconnectActive`、`reconnectAttempt`、`reconnectSuccesses`、`lastDisconnect`、`lastDisconnectAt` 便于脚本观察恢复过程。
 
-See [the full API](docs/AUTOMATION.md) and [workspace example](examples/workspace.ps1). Legacy single-target Host mode remains available with an explicit pipe selection.
+无界面工作区使用 `SshBroker.Host.exe --workspace true`。CLI 配置 SSH 时显式提供已核对的指纹，凭据通过环境变量或标准输入 JSON 提交。完整参数见 [AUTOMATION.md](docs/AUTOMATION.md)，恢复规则见 [RECONNECT.md](docs/RECONNECT.md)。
 
-## Settings, logs and lifecycle
+## 构建与验证
 
-- History and theme: `%LOCALAPPDATA%/SshBroker/workspace/preferences.json`.
-- Window placement: `window.json` in the same directory. `--data-directory PATH` selects a separate settings directory.
-- Passwords and private-key passphrases stay in memory and are not returned in API snapshots or written to history.
-- Per-connection logs contain `events.jsonl`, `rx.bin` and `tx.bin`. Raw terminal logs may contain sensitive session content. The folder button opens the log root.
-- One target's SSH failure does not stop other targets. Reconnection is explicit and never replays old input.
-- Explicit application exit disconnects the workspace; system logoff / shutdown is not intercepted as a tray hide request.
-
-## Build and verification
-
-Stack: C# / .NET 8, WPF, ModernWpfUI 0.9.6 and SSH.NET 2026.0.0. Use Windows x64, .NET SDK 8.0.400 or a compatible newer 8.0.4xx SDK, and Python 3.10+ for the SSH fixtures.
+技术栈：C# / .NET 8、WPF、ModernWpfUI 0.9.6、SSH.NET 2026.0.0。构建需要 Windows x64 和 .NET SDK 8.0.400 或兼容更新的 8.0.4xx SDK；测试夹具需要 Python 3.10+。
 
 ```powershell
 python -m pip install -r tests/requirements.txt
 ./scripts/build-release.ps1
 ```
 
-The release directory is `artifacts/V2.0.0/app/`; the archive is `artifacts/SshBroker-V2.0.0-win-x64.zip`. Source control excludes build products, session logs, temporary test keys and machine-specific reports. Pillow is only needed to regenerate the icon assets, not to build or run the application.
+输出目录为 `artifacts/V2.0.1/app/`，发布包为 `artifacts/SshBroker-V2.0.1-win-x64.zip`。历史版本标签与 Release 保留，`main` 跟随最新版。
 
-Functional verification covers concurrent SSH targets, isolated Telnet routing, history and theme persistence, window restoration, GUI / CLI consistency, and continued transfer after window close. See [test results](docs/TEST-RESULTS.md) and [architecture](docs/MULTI-SESSION.md). Tests use isolated local SSH fixtures rather than changing the user's devices.
+功能检查覆盖自动恢复、次数耗尽、取消握手、连续闪断、历史回放、输入不补发、多目标隔离及托盘生命周期。详见 [测试记录](docs/TEST-RESULTS.md)。测试与产品图使用隔离的本地 SSH 服务，不操作用户使用中的应用或设备。
 
-The GUI monitor escapes control characters; terminal clients handle full terminal rendering. SFTP/SCP, jump hosts, SSH agent integration, interactive MFA and separate remote shells per downstream client are outside this version's scope. Loopback Telnet has no authentication; the control pipe is limited to the current Windows user.
+本版仍不包括 SFTP/SCP、跳板机、SSH agent、交互式 MFA 或每客户端独立远端 shell。GUI 监视区显示转义字符，完整终端渲染由外部终端提供。本机 Telnet 无认证，控制管道限制为当前 Windows 用户；原始终端日志可能包含会话中的敏感内容。
 
-## License and contributors
+## 许可证与贡献
 
-[MIT](LICENSE). The previous license and repository history are preserved. OpenAI Codex assisted development and is credited through Git co-author trailers. See [third-party notices](THIRD-PARTY-NOTICES.md).
+[MIT](LICENSE)。OpenAI Codex 参与开发，通过 Git 提交的共同作者标记署名。依赖见 [第三方声明](THIRD-PARTY-NOTICES.md)。

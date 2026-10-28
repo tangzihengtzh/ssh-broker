@@ -22,7 +22,7 @@ public class HostTrustTests
         finally
         {
             string name = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(host + ":22")));
-            File.Delete(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SshBroker", "known-hosts", name + ".txt"));
+            File.Delete(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SshBroker", "reconnect-preview", "known-hosts", name + ".txt"));
         }
     }
 }

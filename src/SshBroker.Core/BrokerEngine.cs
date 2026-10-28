@@ -42,6 +42,8 @@ public sealed partial class BrokerEngine : IAsyncDisposable
             State = _state, Policy = _policy, Writer = _writer, Config = _config,
             HasPassword = _password.Length > 0, HasKeyPassphrase = _keyPassphrase.Length > 0,
             ObservedHostKey = _observedKey, LastError = _error, RxBytes = _rx, TxBytes = _tx,
+            LastDisconnect = _lastDisconnect, LastDisconnectAt = _lastDisconnectAt,
+            AutoReconnectActive = _recovering, ReconnectAttempt = _reconnectAttempt, ReconnectSuccesses = _reconnectSuccesses,
             OutputCursor = _output.Cursor, TelnetListening = _telnet.Listening, LocalTelnetPort = _telnet.Port,
             LogDirectory = _log.DirectoryPath, Logging = _log.Active, LogFailure = _log.Failure,
             Clients = _clients.Select(c => new ClientSnapshot(c.Key, c.Value.Kind,
@@ -58,7 +60,7 @@ public sealed partial class BrokerEngine : IAsyncDisposable
             lock (_gate)
             {
                 if (_disposed) throw new BrokerException("service_stopped", "Service is shutting down.");
-                if (_state is "connected" or "connecting" or "disconnecting")
+                if (_state is "connected" or "connecting" or "disconnecting" or "reconnecting" || _recovering)
                     throw new BrokerException("busy", "Disconnect before changing connection configuration. Use resize for a live PTY.");
                 if (parameters.TryGetProperty("expectedRevision", out var expected) && expected.GetInt64() != _revision)
                     throw new BrokerException("revision_conflict", "Configuration changed; query status before retrying.");
@@ -156,7 +158,11 @@ public sealed partial class BrokerEngine : IAsyncDisposable
         {
             lock (_gate)
             {
-                if (_state != "connected") throw new BrokerException("not_connected", "No active SSH PTY.");
+                if (_state != "connected")
+                {
+                    EventLocked("offline_input_dropped", $"client={id}; bytes={data.Length}; not queued or replayed");
+                    throw new BrokerException("not_connected", "No active SSH PTY; input was not queued.");
+                }
                 if (!Allowed(id) && !(_policy == "single" && _writer.Length == 0))
                 { EventLocked("write_denied", $"client={id}"); throw new BrokerException("write_denied", "Current policy denies this client's writes."); }
                 RegisterClient(id, id.StartsWith("telnet-", StringComparison.Ordinal) ? "telnet" : "cli");
@@ -218,8 +224,10 @@ public sealed partial class BrokerEngine : IAsyncDisposable
     }
     private string Sanitize(string text)
     {
-        if (_password.Length > 0) text = text.Replace(_password, "[REDACTED]", StringComparison.Ordinal);
-        if (_keyPassphrase.Length > 0) text = text.Replace(_keyPassphrase, "[REDACTED]", StringComparison.Ordinal);
+        static string Mask(string value, string secret) => secret.Length == 0 ? value : secret.Length > 3
+            ? value.Replace(secret, "[REDACTED]", StringComparison.Ordinal)
+            : System.Text.RegularExpressions.Regex.Replace(value, @"(?<![\p{L}\p{N}])" + System.Text.RegularExpressions.Regex.Escape(secret) + @"(?![\p{L}\p{N}])", "[REDACTED]");
+        text = Mask(Mask(text, _password), _keyPassphrase);
         return text.Length > 2000 ? text[..2000] : text;
     }
     private void EventLocked(string kind, string message)

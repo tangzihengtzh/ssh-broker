@@ -12,10 +12,11 @@ public static class CommandParser
         ["telnet-enabled"] = "telnetEnabled", ["columns"] = "columns", ["rows"] = "rows",
         ["connect-timeout"] = "connectTimeoutMs", ["operation-timeout"] = "operationTimeoutMs",
         ["keepalive"] = "keepAliveSeconds", ["health-timeout"] = "healthTimeoutMs", ["health-command"] = "healthCommand",
-        ["log-root"] = "logRoot", ["log-limit"] = "logLimitBytes", ["expected-revision"] = "expectedRevision"
+        ["log-root"] = "logRoot", ["log-limit"] = "logLimitBytes", ["expected-revision"] = "expectedRevision",
+        ["reconnect-attempts"] = "reconnectAttempts", ["reconnect-delay"] = "reconnectDelayMs"
     };
     private static readonly HashSet<string> Numeric = ["port", "telnetPort", "columns", "rows", "connectTimeoutMs",
-        "operationTimeoutMs", "keepAliveSeconds", "healthTimeoutMs", "logLimitBytes", "expectedRevision"];
+        "operationTimeoutMs", "keepAliveSeconds", "healthTimeoutMs", "logLimitBytes", "expectedRevision", "reconnectAttempts", "reconnectDelayMs"];
 
     public static RpcRequest Parse(IReadOnlyList<string> args)
     {

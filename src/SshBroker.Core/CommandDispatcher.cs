@@ -77,7 +77,7 @@ public sealed class CommandDispatcher(BrokerEngine engine)
     private async Task<object> WaitAsync(JsonElement p, CancellationToken token)
     {
         var state = Wire.String(p, "state"); int ms = Wire.Int(p, "ms", 5000);
-        if (ms is < 1 or > 300000 || state is not ("connected" or "disconnected" or "connecting" or "disconnecting" or "faulted"))
+            if (ms is < 1 or > 300000 || state is not ("connected" or "disconnected" or "connecting" or "reconnecting" or "disconnecting" or "faulted"))
             throw new BrokerException("invalid_params", "Invalid wait state or deadline.");
         var deadline = Environment.TickCount64 + ms;
         do

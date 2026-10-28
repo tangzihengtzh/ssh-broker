@@ -65,7 +65,7 @@ try:
     check('new session ports differ and duplicate names are allowed', ports[0] != ports[1] and sessions[0]['name'] == sessions[1]['name'])
     for index, (session, fixture) in enumerate(zip(sessions, fixtures)):
         rpc(session['pipe'], 'configure', dict(host='127.0.0.1', port=fixture.port, username=fixture.username,
-            password=fixture.password, hostKeyFingerprint=fixture.fingerprint, logRoot=str(RUN / ('logs-' + str(index))), keepAliveSeconds=1, healthTimeoutMs=900))
+            password=fixture.password, hostKeyFingerprint=fixture.fingerprint, logRoot=str(RUN / ('logs-' + str(index))), keepAliveSeconds=1, healthTimeoutMs=900, reconnectAttempts=0))
         check('SSH target ' + str(index + 1) + ' connects', rpc(session['pipe'], 'connect')['snapshot']['state'] == 'connected')
     report = RUN / 'workspace-projection.json'
     gui = subprocess.Popen([str(APP / 'SshBroker.exe'), '--pipe', PIPE, '--probe-workspace', 'true',

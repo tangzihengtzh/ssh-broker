@@ -42,6 +42,8 @@ public sealed record BrokerConfig
     public int KeepAliveSeconds { get; init; } = 2;
     public int HealthTimeoutMs { get; init; } = 4000;
     public string HealthCommand { get; init; } = "true";
+    public int ReconnectAttempts { get; init; } = 3;
+    public int ReconnectDelayMs { get; init; } = 2000;
     public string LogRoot { get; init; } = Path.Combine(AppContext.BaseDirectory, "logs");
     public long LogLimitBytes { get; init; } = 16 * 1024 * 1024;
 
@@ -63,6 +65,8 @@ public sealed record BrokerConfig
             throw new BrokerException("invalid_config", "Timeout or keepalive interval outside supported range.");
         if (string.IsNullOrWhiteSpace(LogRoot) || LogLimitBytes is < 1024 or > 1024L * 1024 * 1024)
             throw new BrokerException("invalid_config", "A writable log root and 1 KiB..1 GiB log limit are required.");
+        if (ReconnectAttempts is < 0 or > 20 || ReconnectDelayMs is < 200 or > 60000)
+            throw new BrokerException("invalid_config", "Reconnect attempts must be 0..20 and interval 200..60000 ms.");
         if (HostKeyFingerprint.Length > 128 || (!string.IsNullOrEmpty(HostKeyFingerprint) &&
             !HostKeyFingerprint.StartsWith("SHA256:", StringComparison.Ordinal)))
             throw new BrokerException("invalid_config", "Host key fingerprint must use SHA256:base64 form.");
@@ -84,6 +88,11 @@ public sealed record BrokerSnapshot
     public bool HasKeyPassphrase { get; init; }
     public string ObservedHostKey { get; init; } = "";
     public ErrorInfo? LastError { get; init; }
+    public ErrorInfo? LastDisconnect { get; init; }
+    public DateTimeOffset? LastDisconnectAt { get; init; }
+    public bool AutoReconnectActive { get; init; }
+    public int ReconnectAttempt { get; init; }
+    public long ReconnectSuccesses { get; init; }
     public ClientSnapshot[] Clients { get; init; } = [];
     public long RxBytes { get; init; }
     public long TxBytes { get; init; }

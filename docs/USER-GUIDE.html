@@ -1,13 +1,13 @@
 <!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SSH Broker 使用帮助</title><style>body{font:16px/1.8 "Segoe UI","Microsoft YaHei",sans-serif;color:#25324a;background:#f5f7fb;margin:0}main{max-width:850px;margin:40px auto;background:white;border:1px solid #e2e8f2;border-radius:18px;padding:36px 44px}h1{line-height:1.3}h2{margin-top:30px}code,pre{font-family:Consolas,monospace;background:#edf2fa;border-radius:6px}code{padding:2px 5px}pre{padding:16px;overflow:auto}a{color:#4263eb}</style>
-<main><h1>SSH Broker 使用帮助</h1><p>在一个工作区管理多个远端 SSH 会话，并让本机终端和自动化工具协作。</p>
+<main><h1>SSH Broker 使用帮助</h1><h2>自动重连</h2><p>已建立的连接意外中断时，默认尝试重连 3 次，每次间隔 2 秒，可在连接设置中调整。期间保留本机终端及近期输出，但输入不会排队或补发。恢复后是新的远端 SSH 终端，不会恢复远端进程或工作目录；主动断开会停止重试。</p><p>在一个工作区管理多个远端 SSH 会话，并让本机终端和自动化工具协作。</p>
 <h2>建立连接</h2><ol><li>点击“新建连接”，填写名称、主机地址、SSH 端口、用户名与密码，也可选择私钥认证。</li><li>点击“连接 SSH”。首次连接时确认服务器身份；已确认的身份会记住。</li><li>等待当前目标状态变为 connected。每个目标拥有独立的本机 Telnet 端口。</li></ol>
 <p>历史下拉框保存地址、名称、用户名和端口，不保存密码。选择历史时会回填上次端口，仍可手动修改；新目标会建议避开其它目标和历史记录的端口。</p>
 <h2>使用本机终端</h2><p>任何支持 Telnet 的终端均可接入，包括 MobaXterm、PuTTY 等。选择 Telnet 协议，地址填写 <code>127.0.0.1</code>，端口填写对应标签页配置的本机 Telnet 端口。建议使用字符模式，关闭本地行编辑。本机终端不需要再次输入 SSH 账号密码。</p>
 <p>同一目标的终端和自动化操作共享同一个 SSH PTY、工作目录及环境。不同目标之间相互独立。</p>
 <h2>关闭窗口与退出</h2><p>点击窗口右上角关闭按钮或按 Alt+F4，只会隐藏到系统托盘，已有连接继续运行。点击托盘图标或右键选择“显示窗口”恢复界面。要真正关闭程序，请在托盘菜单选择“退出程序”；存在活动连接时会先确认。托盘图标可能被系统收纳在任务栏的隐藏图标区。</p>
 <p>关闭单个目标标签仍会断开该目标，活动目标关闭前会确认。切换标签、隐藏窗口不会断开连接。系统注销或关机时程序正常退出。</p>
-<h2>自动化接口</h2><p>默认工作区管道名为 <code>SshBrokerV2</code>。<code>sshctl.exe</code> 与主程序位于同一目录。先查询目标列表，再使用返回的目标管道；GUI 当前选中哪个标签不影响命令路由。</p>
+<h2>自动化接口</h2><p>默认工作区管道名为 <code>SshBrokerReconnect</code>。<code>sshctl.exe</code> 与主程序位于同一目录。先查询目标列表，再使用返回的目标管道；GUI 当前选中哪个标签不影响命令路由。</p>
 <pre>sshctl sessions
 sshctl session-create --name "Linux board"
 sshctl --pipe SESSION_PIPE status
@@ -16,4 +16,4 @@ sshctl --pipe SESSION_PIPE watch</pre>
 <p>CLI 配置连接时仍需显式提供已核对的主机指纹。认证凭据使用环境变量或标准输入 JSON，不建议放入普通命令行参数。完整命令、脚本语法和错误码见同目录的 <a href="AUTOMATION.md">AUTOMATION.md</a>。</p>
 <h2>写入策略、日志与外观</h2><p>共享写入允许所有客户端输入；单写入者模式由首个发送者或申请者持有写入权；只读模式禁止输入。退出或断线后不会自动重放命令。</p>
 <p>日志按钮打开当前日志根目录。每次 SSH 连接使用独立日志目录，包含事件和原始 RX/TX 数据，可能含有终端中输入或显示的信息。</p>
-<p>右上角“外观”可选择明亮、暗色、暖色、淡蓝，包含日志区域。主题、历史和窗口尺寸等偏好保存在 <code>%LOCALAPPDATA%\SshBroker\workspace</code>；下次启动会恢复窗口大小和最大化状态，但不会保存密码或自动重连。</p></main></html>
+<p>右上角“外观”可选择明亮、暗色、暖色、淡蓝，包含日志区域。主题、历史和窗口尺寸等偏好保存在 <code>%LOCALAPPDATA%\SshBroker\reconnect-preview\workspace</code>；下次启动会恢复窗口大小和最大化状态，但不会保存密码或自动重连。</p></main></html>

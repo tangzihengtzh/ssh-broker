@@ -2,7 +2,7 @@ using System.Text.Json;
 using SshBroker.Core;
 
 var items = args.ToList();
-string pipe = "SshBrokerV2"; int timeout = 15000;
+string pipe = "SshBrokerReconnect"; int timeout = 15000;
 using var stop = new CancellationTokenSource();
 Console.CancelKeyPress += (_, e) => { e.Cancel = true; stop.Cancel(); };
 try
@@ -20,7 +20,7 @@ try
         Console.WriteLine("sshctl [--pipe NAME] [--rpc-timeout MS] COMMAND [OPTIONS]\n" +
             "Commands: " + string.Join(", ", CommandDispatcher.Commands) + "\n" +
             "Workspace: sessions, session-create --name NAME, session-close --id ID, session-rename --id ID --name NAME, history, palette --value NAME\n" +
-            "Use --pipe SESSION_PIPE for configure/connect/send/watch. Default workspace pipe: SshBrokerV2.\n" +
+            "Use --pipe SESSION_PIPE for configure/connect/send/watch. Default workspace pipe: SshBrokerReconnect.\n" +
             "sshctl --script commands.sshb | --script - | --repl | --json\n" +
             "sshctl configure --host 192.0.2.1 --user root --password-env SSH_PASSWORD --fingerprint SHA256:...\n" +
             "sshctl send --client agent --text help --cr\n" +

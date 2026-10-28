@@ -101,6 +101,9 @@ public partial class SessionView : UserControl
                 HostBox.Text = c.Host; PortBox.Text = c.Port.ToString(CultureInfo.InvariantCulture); UserBox.Text = c.Username;
                 AuthBox.SelectedValue = c.Authentication; KeyBox.Text = c.PrivateKeyPath; FingerprintBox.Text = c.HostKeyFingerprint;
                 TelnetEnabledBox.IsChecked = c.TelnetEnabled; TelnetPortBox.Text = c.TelnetPort.ToString(CultureInfo.InvariantCulture);
+                AutoReconnectBox.IsChecked = c.ReconnectAttempts > 0;
+                ReconnectAttemptsBox.Text = Math.Max(1, c.ReconnectAttempts).ToString(CultureInfo.InvariantCulture);
+                ReconnectDelayBox.Text = (c.ReconnectDelayMs / 1000m).ToString(CultureInfo.InvariantCulture);
                 LogRootBox.Text = c.LogRoot; ColumnsBox.Text = c.Columns.ToString(CultureInfo.InvariantCulture); RowsBox.Text = c.Rows.ToString(CultureInfo.InvariantCulture);
                 // Keep this window's masked input after its own successful submit.
                 // External updates must discard stale local secrets before a later submit.
@@ -143,6 +146,8 @@ public partial class SessionView : UserControl
                 ["username"] = UserBox.Text, ["authentication"] = AuthBox.SelectedValue?.ToString() ?? "password",
                 ["privateKeyPath"] = KeyBox.Text, ["hostKeyFingerprint"] = FingerprintBox.Text.Trim(),
                 ["telnetEnabled"] = TelnetEnabledBox.IsChecked == true, ["telnetPort"] = int.Parse(TelnetPortBox.Text, CultureInfo.InvariantCulture),
+                ["reconnectAttempts"] = AutoReconnectBox.IsChecked == true ? int.Parse(ReconnectAttemptsBox.Text, CultureInfo.InvariantCulture) : 0,
+                ["reconnectDelayMs"] = checked((int)(decimal.Parse(ReconnectDelayBox.Text, CultureInfo.InvariantCulture) * 1000)),
                 ["logRoot"] = LogRootBox.Text, ["columns"] = int.Parse(ColumnsBox.Text, CultureInfo.InvariantCulture),
                 ["rows"] = int.Parse(RowsBox.Text, CultureInfo.InvariantCulture), ["expectedRevision"] = View.Revision
             };
@@ -405,6 +410,9 @@ public partial class SessionView : UserControl
         Check("fingerprintEditor", FingerprintBox.Text, View.Snapshot.Config.HostKeyFingerprint);
         Check("usernameEditor", UserBox.Text, View.Username);
         Check("authEditor", AuthBox.SelectedValue?.ToString(), View.Snapshot.Config.Authentication);
+        Check("reconnectAttemptsEditor", ReconnectAttemptsBox.Text, Math.Max(1, View.Snapshot.Config.ReconnectAttempts).ToString(CultureInfo.InvariantCulture));
+        Check("reconnectDelayEditor", ReconnectDelayBox.Text, (View.Snapshot.Config.ReconnectDelayMs / 1000m).ToString(CultureInfo.InvariantCulture));
+        if (AutoReconnectBox.IsChecked != (View.Snapshot.Config.ReconnectAttempts > 0)) mismatches.Add("autoReconnectEditor");
         Check("privateKeyEditor", KeyBox.Text, View.Snapshot.Config.PrivateKeyPath);
         Check("columnsEditor", ColumnsBox.Text, View.Snapshot.Config.Columns.ToString(CultureInfo.InvariantCulture));
         Check("rowsEditor", RowsBox.Text, View.Snapshot.Config.Rows.ToString(CultureInfo.InvariantCulture));
@@ -414,6 +422,7 @@ public partial class SessionView : UserControl
         return new { ok = mismatches.Count == 0, mismatches, View.Revision, View.ConfigRevision, View.State,
             View.Host, View.Port, View.Username, View.Policy, View.RxBytes, View.TxBytes,
             displayedHost = HostValue.Text, displayedPort = PortValue.Text, displayedPolicy = PolicySelector.SelectedValue?.ToString(),
-            displayedState = StateValue.Text, displayedRevision = RevisionValue.Text };
+            displayedState = StateValue.Text, displayedRevision = RevisionValue.Text,
+            displayedOutputTail = MonitorBox.Text.Length > 8192 ? MonitorBox.Text[^8192..] : MonitorBox.Text };
     }
 }

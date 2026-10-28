@@ -11,6 +11,7 @@
       <Border CornerRadius="6" Background="{DynamicResource SoftBrush}" Padding="10,5" Margin="0,0,18,0"><TextBlock x:Name="StateValue" Text="{Binding View.State}" Foreground="{DynamicResource AccentBrush}" FontWeight="SemiBold"/></Border>
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,20,0"><TextBlock x:Name="HostValue" Text="{Binding View.Host}" FontWeight="SemiBold"/><TextBlock Text=":"/><TextBlock x:Name="PortValue" Text="{Binding View.Port}"/></StackPanel>
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center"><TextBlock Text="用户  " Foreground="{DynamicResource MutedBrush}"/><TextBlock x:Name="UserValue" Text="{Binding View.Username}"/></StackPanel>
+      <TextBlock Text="{Binding View.ReconnectStatus}" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="18,0,0,0"/>
      </WrapPanel>
      <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
       <TextBlock Text="RX " Foreground="{DynamicResource MutedBrush}"/><TextBlock Text="{Binding View.RxBytes}" FontFamily="Consolas" Margin="0,0,20,0"/>
@@ -46,6 +47,11 @@
          <Button Content="核对后使用此指纹" Click="TrustFingerprintClick" HorizontalAlignment="Left" Margin="0,8,0,0"/>
         </StackPanel></Expander>
         <Border Height="1" Background="{DynamicResource LineBrush}" Margin="0,14,0,8"/>
+        <CheckBox x:Name="AutoReconnectBox" Content="意外断线后自动重连" Checked="DraftChanged" Unchecked="DraftChanged" Margin="0,4,0,0"/>
+        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+         <StackPanel><TextBlock Text="最多重试次数" Style="{StaticResource FieldLabel}"/><TextBox x:Name="ReconnectAttemptsBox" TextChanged="DraftChanged"/></StackPanel>
+         <StackPanel Grid.Column="2"><TextBlock Text="重试间隔 / 秒" Style="{StaticResource FieldLabel}"/><TextBox x:Name="ReconnectDelayBox" TextChanged="DraftChanged"/></StackPanel>
+        </Grid>
         <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="12"/><ColumnDefinition Width="86"/></Grid.ColumnDefinitions>
          <CheckBox x:Name="TelnetEnabledBox" Content="本机 Telnet" VerticalAlignment="Bottom" Margin="0,0,0,5" Checked="DraftChanged" Unchecked="DraftChanged"/>
          <StackPanel Grid.Column="2"><TextBlock Text="Telnet 端口" Style="{StaticResource FieldLabel}"/><TextBox x:Name="TelnetPortBox" TextChanged="TelnetPortEdited"/></StackPanel>

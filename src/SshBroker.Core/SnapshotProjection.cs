@@ -25,6 +25,7 @@ public sealed class SnapshotProjection : INotifyPropertyChanged
     public string LogDirectory => _snapshot.LogDirectory;
     public bool Logging => _snapshot.Logging;
     public int LocalTelnetPort => _snapshot.LocalTelnetPort;
+    public string ReconnectStatus => _snapshot.AutoReconnectActive ? $"正在重连 {_snapshot.ReconnectAttempt}/{_snapshot.Config.ReconnectAttempts}" : "";
     public ClientSnapshot[] Clients => _snapshot.Clients;
 
     public bool Apply(BrokerSnapshot snapshot)

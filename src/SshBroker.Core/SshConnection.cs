@@ -9,14 +9,25 @@ public sealed partial class BrokerEngine
 {
     public async Task ConnectAsync(CancellationToken token = default)
     {
+        await StopReconnectAsync().ConfigureAwait(false);
+        await ConnectCoreAsync(false, token).ConfigureAwait(false);
+    }
+    private async Task ConnectCoreAsync(bool automatic, CancellationToken token)
+    {
         await _lifecycle.WaitAsync(token).ConfigureAwait(false);
         try
         {
             await _faultCleanup.ConfigureAwait(false);
+            if (!automatic)
+            {
+                lock (_gate) if (_state is "connected" or "connecting") throw new BrokerException("already_connected", "An SSH connection already exists.");
+                await CleanupTransportAsync().ConfigureAwait(false);
+            }
             BrokerConfig config; string password, passphrase; long generation;
             lock (_gate)
             {
                 if (_disposed) throw new BrokerException("service_stopped", "Service is shutting down.");
+                token.ThrowIfCancellationRequested();
                 if (_state is "connected" or "connecting") throw new BrokerException("already_connected", "An SSH connection already exists.");
                 config = _config; config.Validate();
                 if (string.IsNullOrWhiteSpace(config.Username)) throw new BrokerException("invalid_config", "Username is required.");
@@ -26,7 +37,10 @@ public sealed partial class BrokerEngine
                     throw new BrokerException("credentials_missing", "Private key file does not exist.");
                 password = _password; passphrase = _keyPassphrase;
                 generation = ++_generation; _epoch++; _error = null; _observedKey = "";
-                _state = "connecting"; _rx = _tx = 0; _clients.Clear();
+                string endpoint = $"{config.Host.ToLowerInvariant()}:{config.Port}/{config.Username}";
+                if (endpoint != _historyEndpoint) { _telnet.ClearHistory(); _historyEndpoint = endpoint; }
+                _state = automatic ? "reconnecting" : "connecting";
+                if (!automatic) { _rx = _tx = 0; _clients.Clear(); _reconnectAttempt = 0; }
                 _connectionStop?.Dispose(); _connectionStop = new();
                 EventLocked("connecting", $"host={config.Host} port={config.Port} user={config.Username}");
             }
@@ -56,7 +70,7 @@ public sealed partial class BrokerEngine
                         args.CanTrust = string.Equals(config.HostKeyFingerprint, fingerprint, StringComparison.Ordinal);
                     }
                 };
-                client.ErrorOccurred += (_, args) => Fault(generation, "transport_lost", args.Exception.Message);
+                client.ErrorOccurred += (_, args) => Fault(generation, "transport_lost", args.Exception.GetType().Name + ": " + args.Exception.Message);
                 using var connect = CancellationTokenSource.CreateLinkedTokenSource(token, _connectionStop!.Token);
                 connect.CancelAfter(config.ConnectTimeoutMs);
                 await client.ConnectAsync(connect.Token).ConfigureAwait(false);
@@ -64,18 +78,21 @@ public sealed partial class BrokerEngine
                 ShellStream shell;
                 try { shell = await open.WaitAsync(TimeSpan.FromMilliseconds(config.ConnectTimeoutMs), connect.Token).ConfigureAwait(false); }
                 catch { _ = open.ContinueWith(t => { if (t.IsCompletedSuccessfully) t.Result.Dispose(); else _ = t.Exception; }); throw; }
-                shell.ErrorOccurred += (_, args) => Fault(generation, "shell_error", args.Exception.Message);
+                shell.ErrorOccurred += (_, args) => Fault(generation, "shell_error", args.Exception.GetType().Name + ": " + args.Exception.Message);
                 lock (_gate)
                 {
                     _shell = shell;
                 }
                 // A listening Telnet port must mean the upstream PTY is ready.
-                if (config.TelnetEnabled) _telnet.Start(config.TelnetPort);
+                if (config.TelnetEnabled && !_telnet.Listening) _telnet.Start(config.TelnetPort, preserveHistory: true);
                 lock (_gate)
                 {
                     _state = "connected"; _revision++;
+                    _connectedAt = DateTimeOffset.UtcNow;
+                    if (automatic) _reconnectSuccesses++;
                     EventLocked("connected", $"SSH PTY established; fingerprint={_observedKey}");
                 }
+                if (automatic) Announce("SSH reconnected. New remote shell; old commands were not replayed.");
                 var stop = _connectionStop.Token;
                 _reader = Task.Run(() => ReadLoop(shell, generation, stop));
                 _health = HealthLoopAsync(client, generation, config, stop);
@@ -94,10 +111,11 @@ public sealed partial class BrokerEngine
                     message = code is "host_key_unknown" or "host_key_mismatch"
                         ? "Host key was rejected. Verify the observed fingerprint out of band before configuring it."
                         : Sanitize(exception.Message);
-                    _state = "faulted"; _error = new(code, message); _epoch++; _revision++;
+                    _state = automatic && !token.IsCancellationRequested ? "reconnecting" : "faulted";
+                    _error = new(code, message); _epoch++; _revision++;
                     EventLocked(code, message);
                 }
-                await CleanupTransportAsync().ConfigureAwait(false);
+                await CleanupTransportAsync(preserveTelnet: automatic).ConfigureAwait(false);
                 throw new BrokerException(code, message);
             }
             finally { key?.Dispose(); }
@@ -117,7 +135,7 @@ public sealed partial class BrokerEngine
                 Received(generation, buffer.AsSpan(0, count).ToArray());
             }
         }
-        catch (Exception e) { if (!token.IsCancellationRequested) Fault(generation, "read_failed", e.Message); }
+        catch (Exception e) { if (!token.IsCancellationRequested) Fault(generation, "read_failed", e.GetType().Name + ": " + e.Message); }
     }
     private async Task HealthLoopAsync(SshClient client, long generation, BrokerConfig config, CancellationToken token)
     {
@@ -135,37 +153,51 @@ public sealed partial class BrokerEngine
             }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
-        catch (Exception e) { if (!token.IsCancellationRequested) Fault(generation, "health_timeout", e.Message); }
+        catch (Exception e) { if (!token.IsCancellationRequested) Fault(generation, "health_timeout", e.GetType().Name + ": " + e.Message); }
     }
     private void Fault(long generation, string code, string message)
     {
         lock (_gate)
         {
             if (generation != _generation || _state != "connected") return;
-            _state = "faulted"; _error = new(code, Sanitize(message)); _epoch++; _revision++;
+            var now = DateTimeOffset.UtcNow;
+            if (now - _connectedAt >= TimeSpan.FromSeconds(30)) _reconnectAttempt = 0;
+            _lastDisconnect = new(code, Sanitize(message)); _lastDisconnectAt = now;
+            bool retry = !_disposed && Retryable(code) && _reconnectAttempt < _config.ReconnectAttempts;
+            _state = retry ? "reconnecting" : "faulted"; _error = _lastDisconnect; _epoch++; _revision++;
             _connectionStop?.Cancel();
             EventLocked(code, message);
-            _faultCleanup = Task.Run(CleanupTransportAsync);
+            EventLocked("disconnect_diagnostic", $"generation={generation}; connected_ms={(long)(now - _connectedAt).TotalMilliseconds}; rx={_rx}; tx={_tx}; cause={code}");
+            _faultCleanup = Task.Run(() => CleanupTransportAsync(preserveTelnet: retry));
+            if (retry)
+            {
+                var stop = new CancellationTokenSource(); _reconnectStop = stop; _recovering = true;
+                var cleanup = _faultCleanup;
+                _reconnectTask = Task.Run(() => ReconnectLoopAsync(cleanup, stop));
+            }
+            else EventLocked("reconnect_stopped", "Automatic recovery disabled, exhausted, or cause requires user action.");
         }
     }
-    private async Task CleanupTransportAsync()
+    private async Task CleanupTransportAsync(bool preserveTelnet = false)
     {
         _connectionStop?.Cancel();
         SshClient? client; ShellStream? shell;
         lock (_gate) { client = _client; shell = _shell; _client = null; _shell = null; }
         // Dispose the transport before waiting for readers so blocked reads/writes can finish.
         await Task.Run(() => { try { client?.Dispose(); } finally { shell?.Dispose(); } }).ConfigureAwait(false);
-        await _telnet.StopAsync().ConfigureAwait(false);
+        if (!preserveTelnet) await _telnet.StopAsync(preserveHistory: true).ConfigureAwait(false);
         try { await Task.WhenAll(_reader, _health).WaitAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false); }
         catch (Exception e) when (e is TimeoutException or OperationCanceledException) { }
         lock (_gate)
         {
-            _clients.Clear(); _writer = ""; _revision++;
-            EventLocked("transport_cleaned", "SSH and Telnet sessions closed; pending writes will not be replayed.");
+            if (!preserveTelnet) { _clients.Clear(); _writer = ""; }
+            _revision++;
+            EventLocked("transport_cleaned", preserveTelnet ? "SSH closed; Telnet sockets/history retained. Offline input is rejected; nothing is replayed." : "SSH and Telnet sessions closed; output history retained; pending writes will not be replayed.");
         }
     }
     public async Task DisconnectAsync(CancellationToken token = default)
     {
+        await StopReconnectAsync().ConfigureAwait(false);
         lock (_gate) _connectionStop?.Cancel(); // Also cancels an in-progress connection attempt.
         await _lifecycle.WaitAsync(token).ConfigureAwait(false);
         try

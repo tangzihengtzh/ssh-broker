@@ -19,12 +19,12 @@ public sealed class TelnetFrontEnd(
     private int _next;
     public bool Listening => _listener != null;
     public int Port { get; private set; }
-    public void Start(int port)
+    public void Start(int port, bool preserveHistory = false)
     {
         if (_listener != null) throw new InvalidOperationException("Telnet already started.");
         var listener = new TcpListener(IPAddress.Loopback, port) { ExclusiveAddressUse = true };
         listener.Start(32); _listener = listener; Port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        _stop = new(); _history.Clear();
+        _stop = new(); if (!preserveHistory) ClearHistory();
         _accept = AcceptAsync(listener, _stop.Token);
     }
     public void Broadcast(byte[] data)
@@ -32,7 +32,7 @@ public sealed class TelnetFrontEnd(
         lock (_gate)
         {
             _history.AddRange(data);
-            if (_history.Count > 65536) _history.RemoveRange(0, _history.Count - 65536);
+            if (_history.Count > 512 * 1024) _history.RemoveRange(0, _history.Count - 512 * 1024);
             var packet = TelnetCodec.Escape(data);
             foreach (var peer in _peers.Values.ToArray()) peer.Enqueue(packet);
         }
@@ -67,13 +67,14 @@ public sealed class TelnetFrontEnd(
             if (!token.IsCancellationRequested) error("Telnet listener: " + e.Message);
         }
     }
-    public async Task StopAsync()
+    public void ClearHistory() { lock (_gate) _history.Clear(); }
+    public async Task StopAsync(bool preserveHistory = false)
     {
         _stop?.Cancel();
         var listener = _listener; _listener = null; Port = 0; listener?.Stop();
         if (_accept != null) { await _accept.ConfigureAwait(false); _accept = null; }
         Peer[] peers;
-        lock (_gate) { peers = _peers.Values.ToArray(); _history.Clear(); }
+        lock (_gate) { peers = _peers.Values.ToArray(); if (!preserveHistory) _history.Clear(); }
         foreach (var peer in peers) peer.Stop("server_stop");
         await Task.WhenAll(peers.Select(p => p.Completion)).ConfigureAwait(false);
         lock (_gate) _peers.Clear();
@@ -99,7 +100,8 @@ public sealed class TelnetFrontEnd(
         {
             if (Volatile.Read(ref _stopped) != 0) return;
             // Leave room for ordinary LAN bursts/GC pauses while retaining a hard per-peer bound.
-            if (Interlocked.Add(ref _bytes, packet.Length) > 1024 * 1024 || !_queue.Writer.TryWrite(packet)) Stop("slow_client_queue_overflow");
+            // A retained 512 KiB history can expand to 1 MiB after IAC escaping.
+            if (Interlocked.Add(ref _bytes, packet.Length) > 2 * 1024 * 1024 || !_queue.Writer.TryWrite(packet)) Stop("slow_client_queue_overflow");
         }
         public void Stop(string reason)
         {

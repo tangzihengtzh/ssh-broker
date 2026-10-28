@@ -6,13 +6,13 @@ try
     var options = CommandParser.ParseOptions(args);
     if (options.GetValueOrDefault("workspace", "false") == "true")
     {
-        var workspacePipe = options.GetValueOrDefault("pipe", "SshBrokerV2");
-        var directory = options.GetValueOrDefault("data-directory", Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SshBroker", "workspace"));
+        var workspacePipe = options.GetValueOrDefault("pipe", "SshBrokerReconnect");
+        var directory = options.GetValueOrDefault("data-directory", Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SshBroker", "reconnect-preview", "workspace"));
         await using var workspace = new WorkspaceRuntime(workspacePipe, directory);
         workspace.Start();
         using var workspaceStop = new CancellationTokenSource();
         Console.CancelKeyPress += (_, e) => { e.Cancel = true; workspaceStop.Cancel(); };
-        Console.WriteLine(JsonSerializer.Serialize(new { ready = true, pipe = workspacePipe, version = "2.0.0", kind = "workspace" }, Wire.Json));
+        Console.WriteLine(JsonSerializer.Serialize(new { ready = true, pipe = workspacePipe, version = "2.0.1", kind = "workspace" }, Wire.Json));
         try { await workspace.Shutdown.WaitAsync(workspaceStop.Token); } catch (OperationCanceledException) { }
         return 0;
     }
@@ -23,7 +23,7 @@ try
     runtime.Start();
     using var stop = new CancellationTokenSource();
     Console.CancelKeyPress += (_, e) => { e.Cancel = true; stop.Cancel(); };
-    Console.WriteLine(JsonSerializer.Serialize(new { ready = true, pipe, version = "2.0.0" }, Wire.Json));
+    Console.WriteLine(JsonSerializer.Serialize(new { ready = true, pipe, version = "2.0.1" }, Wire.Json));
     try { await runtime.Shutdown.WaitAsync(stop.Token); } catch (OperationCanceledException) { }
     return 0;
 }

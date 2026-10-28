@@ -234,4 +234,9 @@ public partial class WorkspaceWindow : Window
         using var output = System.IO.File.Create(path); encoder.Save(output);
     }
     public void PreviewTheme(string theme) => ApplyPalette(theme);
+    public void SelectConnectedTarget()
+    {
+        var target = _tabs.Values.FirstOrDefault(item => item.View.View.State == "connected");
+        if (target.Tab != null) SessionTabs.SelectedItem = target.Tab;
+    }
 }

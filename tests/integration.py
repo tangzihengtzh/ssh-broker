@@ -90,7 +90,7 @@ class Suite:
                       keyPassphrase="", hostKeyFingerprint=self.fixture.fingerprint,
                       telnetEnabled=True, telnetPort=0, columns=120, rows=32,
                       connectTimeoutMs=1500, operationTimeoutMs=1800, keepAliveSeconds=1,
-                      healthTimeoutMs=900, healthCommand="true", logRoot=str(self.run_root / "logs"),
+                      healthTimeoutMs=900, healthCommand="true", reconnectAttempts=0, logRoot=str(self.run_root / "logs"),
                       logLimitBytes=16 * 1024 * 1024)
         values.update(overrides)
         self.raw("configure", values)

@@ -39,8 +39,8 @@ public partial class App : Application
     }
     private async Task StartWorkspaceAsync(Dictionary<string, string> options)
     {
-        string pipe = options.GetValueOrDefault("pipe", "SshBrokerV2");
-        string directory = options.GetValueOrDefault("data-directory", Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SshBroker", "workspace"));
+        string pipe = options.GetValueOrDefault("pipe", "SshBrokerReconnect");
+        string directory = options.GetValueOrDefault("data-directory", Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SshBroker", "reconnect-preview", "workspace"));
         Func<RpcRequest, Task<RpcResponse>> call;
         try
         {
@@ -95,9 +95,24 @@ public partial class App : Application
             }
             var deadline = DateTime.UtcNow.AddSeconds(int.Parse(options.GetValueOrDefault("probe-seconds", "20")));
             window.Begin();
+            bool capturedWelcome = false, capturedWorkspace = false;
             while (DateTime.UtcNow < deadline)
             {
                 var report = await window.ProbeAsync();
+                if (options.TryGetValue("screenshot-directory", out var screenshots))
+                {
+                    if (!capturedWelcome && window.ConnectedTargetCount == 0)
+                    {
+                        await window.RenderPreviewAsync(Path.Combine(screenshots, "welcome.png"), 1380, 920);
+                        capturedWelcome = true;
+                    }
+                    if (!capturedWorkspace && window.ConnectedTargetCount >= 2 && File.Exists(Path.Combine(screenshots, "capture.ready")))
+                    {
+                        window.SelectConnectedTarget(); window.PreviewTheme("Dark");
+                        await window.RenderPreviewAsync(Path.Combine(screenshots, "workspace.png"), 1380, 920);
+                        capturedWorkspace = true;
+                    }
+                }
                 if (trayProbe && !window.IsInBackground && window.ConnectedTargetCount >= 2)
                 {
                     window.Close();
@@ -127,7 +142,7 @@ public partial class App : Application
         try
         {
             var options = CommandParser.ParseOptions(e.Args);
-            if (options.Keys.Any(k => k is not ("pipe" or "probe-output" or "probe-seconds" or "probe-own" or "probe-form" or "probe-login" or "probe-workspace" or "probe-ui" or "probe-tray" or "preview-directory" or "data-directory")))
+            if (options.Keys.Any(k => k is not ("pipe" or "probe-output" or "probe-seconds" or "probe-own" or "probe-form" or "probe-login" or "probe-workspace" or "probe-ui" or "probe-tray" or "preview-directory" or "screenshot-directory" or "data-directory")))
                 throw new BrokerException("invalid_params", "GUI accepts --pipe, --probe-output and --probe-seconds.");
             if (!options.ContainsKey("probe-output") || options.ContainsKey("probe-workspace")) { await StartWorkspaceAsync(options); return; }
             string pipe = options.GetValueOrDefault("pipe", "SshBroker");
