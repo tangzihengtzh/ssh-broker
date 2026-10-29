@@ -109,7 +109,7 @@ public sealed partial class BrokerEngine
                         : exception is OperationCanceledException or TimeoutException or SshOperationTimeoutException ? "connect_timeout"
                         : "connect_failed";
                     message = code is "host_key_unknown" or "host_key_mismatch"
-                        ? "Host key was rejected. Verify the observed fingerprint out of band before configuring it."
+                        ? $"Host key was rejected. expected={config.HostKeyFingerprint}; observed={_observedKey}. Verify the server identity before updating trust."
                         : Sanitize(exception.Message);
                     _state = automatic && !token.IsCancellationRequested ? "reconnecting" : "faulted";
                     _error = new(code, message); _epoch++; _revision++;

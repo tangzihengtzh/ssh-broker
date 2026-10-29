@@ -1,3 +1,4 @@
+using System.IO;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -317,7 +318,7 @@ public partial class SessionView : UserControl
         return new { ok = applied && retained && external.Ok && cleared, applied, retained, cleared };
     }
     private async void ConnectClick(object sender, RoutedEventArgs e) => await ConnectFromFormAsync();
-    private async Task ConnectFromFormAsync()
+    private async Task ConnectFromFormAsync(Func<string, string, bool>? confirm = null)
     {
         if (_connecting) return;
         _connecting = true;
@@ -328,15 +329,36 @@ public partial class SessionView : UserControl
                 FingerprintBox.Text = HostTrustStore.Load(HostBox.Text.Trim(), port);
             if ((_draft || PasswordInput.Password.Length > 0 || PassphraseInput.Password.Length > 0) && !await ApplyDraftAsync()) return;
             bool connected = await ExecuteAsync(RpcRequest.Create("connect"));
-            if (!connected && View.Snapshot.LastError?.Code == "host_key_unknown")
+            if (!connected && View.Snapshot.LastError?.Code is "host_key_unknown" or "host_key_mismatch")
             {
                 var s = View.Snapshot;
-                bool trusted = HostTrustStore.MatchesOpenSsh(s.Config.Host, s.Config.Port, s.ObservedHostKey);
+                bool changed = s.LastError?.Code == "host_key_mismatch";
+                // Only first-use keys may use OpenSSH trust automatically. A changed key always requires consent.
+                bool trusted = !changed && HostTrustStore.MatchesOpenSsh(s.Config.Host, s.Config.Port, s.ObservedHostKey);
                 if (!trusted)
-                    trusted = MessageBox.Show(Window.GetWindow(this), $"首次连接服务器 {s.Config.Host}:{s.Config.Port}。\n\n服务器身份：{s.ObservedHostKey}\n\n是否信任并记住此服务器？以后连接无需再次确认。", "首次 SSH 连接", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
-                if (!trusted) { StatusLabel.Text = "未信任服务器，连接已取消。密码保留，可再次连接。"; return; }
+                {
+                    string title = changed ? "服务器身份已变化" : "首次 SSH 连接";
+                    string message = changed
+                        ? $"服务器 {s.Config.Host}:{s.Config.Port} 的主机指纹已变化。设备重装系统可能导致此变化，请确认连接的是预期设备。\n\n原指纹：{s.Config.HostKeyFingerprint}\n新指纹：{s.ObservedHostKey}\n\n是否信任新指纹并连接？确认后将更新此地址的身份记录。"
+                        : $"首次连接服务器 {s.Config.Host}:{s.Config.Port}。\n\n服务器身份：{s.ObservedHostKey}\n\n是否信任并记住此服务器？以后连接无需再次确认。";
+                    trusted = confirm != null ? confirm(title, message)
+                        : MessageBox.Show(Window.GetWindow(this), message, title, MessageBoxButton.YesNo,
+                            changed ? MessageBoxImage.Warning : MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes;
+                }
+                if (!trusted)
+                {
+                    StatusLabel.Text = changed ? "未接受新指纹，原身份记录未更改。密码保留，可再次连接。" : "未信任服务器，连接已取消。密码保留，可再次连接。";
+                    return;
+                }
+                // Reject a stale prompt if the form was edited while the connection was pending.
+                if (HostBox.Text.Trim() != s.Config.Host || PortBox.Text.Trim() != s.Config.Port.ToString(CultureInfo.InvariantCulture))
+                { StatusLabel.Text = "目标地址已修改，请重新点击连接 SSH。"; return; }
                 FingerprintBox.Text = s.ObservedHostKey;
                 if (!await ApplyDraftAsync()) return;
+                try { HostTrustStore.Save(s.Config.Host, s.Config.Port, s.ObservedHostKey); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                { StatusLabel.Text = "服务器身份记录保存失败：" + ex.Message; return; }
+                // One retry only: another key change must be reviewed on a new user action.
                 connected = await ExecuteAsync(RpcRequest.Create("connect"));
             }
             if (connected)
@@ -349,6 +371,40 @@ public partial class SessionView : UserControl
         }
         finally { _connecting = false; }
     }
+    public async Task<object> HostKeyChangeProbeAsync(string directory, int port, string password, string expected)
+    {
+        HostTrustStore.DirectoryOverride = Path.GetFullPath(directory);
+        await RefreshAsync();
+        HostBox.Text = "127.0.0.1"; PortBox.Text = port.ToString(CultureInfo.InvariantCulture);
+        UserBox.Text = "fixture"; PasswordInput.Password = password;
+        KeyBox.Text = "missing-private-key.pem"; AuthBox.SelectedValue = "password";
+        LogRootBox.Text = Path.Combine(Path.GetDirectoryName(directory)!, "logs");
+        TelnetPortBox.Text = "0"; // The fixture must never compete with a live user Telnet listener.
+        const string oldKey = "SHA256:previous-board-installation";
+        HostTrustStore.Save("127.0.0.1", port, oldKey);
+        FingerprintBox.Text = oldKey;
+        int prompts = 0; bool details = false;
+        bool Confirm(string title, string message)
+        {
+            prompts++; details = message.Contains(oldKey) && message.Contains(expected) && message.Contains("127.0.0.1:" + port) && message.Contains("重装");
+            return false;
+        }
+        await ConnectFromFormAsync(Confirm);
+        bool rejected = View.State == "faulted" && View.Snapshot.LastError?.Code == "host_key_mismatch";
+        bool unchanged = HostTrustStore.Load("127.0.0.1", port) == oldKey && FingerprintBox.Text == oldKey;
+        bool retainedOnCancel = PasswordInput.Password == password;
+        await ConnectFromFormAsync((title, message) => { prompts++; return true; });
+        bool connected = View.State == "connected";
+        bool saved = HostTrustStore.Load("127.0.0.1", port) == expected;
+        bool retained = PasswordInput.Password == password && View.Snapshot.HasPassword;
+        await ExecuteAsync(RpcRequest.Create("disconnect"));
+        FingerprintBox.Text = ""; // Force the next connection to reload the persisted trust record.
+        await ConnectFromFormAsync((title, message) => { prompts++; return false; });
+        bool subsequent = View.State == "connected" && prompts == 2;
+        return new { ok = rejected && unchanged && retainedOnCancel && connected && saved && retained && subsequent && details,
+            rejected, unchanged, retainedOnCancel, connected, saved, retained, subsequent, details, prompts };
+    }
+
     public async Task<object> LoginRegressionProbeAsync(string host, string username, string password)
     {
         await RefreshAsync();

@@ -6,10 +6,12 @@ namespace SshBroker.Gui;
 
 internal static class HostTrustStore
 {
+    internal static string? DirectoryOverride { get; set; }
+
     private static string KeyPath(string host, int port)
     {
         string name = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{host.ToLowerInvariant()}:{port}")));
-        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SshBroker", "reconnect-preview", "known-hosts", name + ".txt");
+        return Path.Combine(DirectoryOverride ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SshBroker", "reconnect-preview", "known-hosts"), name + ".txt");
     }
     public static string Load(string host, int port)
     {

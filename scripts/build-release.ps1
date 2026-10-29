@@ -1,11 +1,12 @@
+﻿param([string]$AppDirectory = 'artifacts/V2.0.2/app')
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 Push-Location -LiteralPath $projectRoot
 try {
     & (Join-Path $PSScriptRoot 'build.ps1')
     foreach ($project in @('SshBroker.Host','SshBroker.Cli','SshBroker.Gui')) {
-        & dotnet publish "src/$project/$project.csproj" -c Release --no-restore --no-self-contained -o artifacts/V2.0.1/app --verbosity minimal
+        & dotnet publish "src/$project/$project.csproj" -c Release --no-restore --no-self-contained -o $AppDirectory --verbosity minimal
         if ($LASTEXITCODE -ne 0) { throw "Publish failed: $project" }
     }
-    & (Join-Path $PSScriptRoot 'package.ps1') -PublishDirectory artifacts/V2.0.1/app -ArchiveName SshBroker-V2.0.1-win-x64.zip
+    & (Join-Path $PSScriptRoot 'package.ps1') -PublishDirectory $AppDirectory -ArchiveName SshBroker-V2.0.2-win-x64.zip
 } finally { Pop-Location }

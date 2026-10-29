@@ -142,7 +142,7 @@ public partial class App : Application
         try
         {
             var options = CommandParser.ParseOptions(e.Args);
-            if (options.Keys.Any(k => k is not ("pipe" or "probe-output" or "probe-seconds" or "probe-own" or "probe-form" or "probe-login" or "probe-workspace" or "probe-ui" or "probe-tray" or "preview-directory" or "screenshot-directory" or "data-directory")))
+            if (options.Keys.Any(k => k is not ("pipe" or "probe-output" or "probe-seconds" or "probe-own" or "probe-form" or "probe-login" or "probe-host-key" or "probe-workspace" or "probe-ui" or "probe-tray" or "preview-directory" or "screenshot-directory" or "data-directory")))
                 throw new BrokerException("invalid_params", "GUI accepts --pipe, --probe-output and --probe-seconds.");
             if (!options.ContainsKey("probe-output") || options.ContainsKey("probe-workspace")) { await StartWorkspaceAsync(options); return; }
             string pipe = options.GetValueOrDefault("pipe", "SshBroker");
@@ -164,6 +164,17 @@ public partial class App : Application
             if (options.TryGetValue("probe-output", out var output))
             {
                 ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                if (options.GetValueOrDefault("probe-host-key", "false") == "true")
+                {
+                    if (_runtime == null) throw new InvalidOperationException("Host key probe requires an isolated owned broker.");
+                    var report = await window.HostKeyChangeProbeAsync(
+                        Path.Combine(Path.GetDirectoryName(Path.GetFullPath(output))!, "trust"),
+                        int.Parse(Environment.GetEnvironmentVariable("SSHBROKER_PROBE_PORT")!),
+                        Environment.GetEnvironmentVariable("SSHBROKER_PROBE_PASSWORD")!,
+                        Environment.GetEnvironmentVariable("SSHBROKER_PROBE_FINGERPRINT")!);
+                    await File.WriteAllTextAsync(Path.GetFullPath(output), JsonSerializer.Serialize(report, Wire.Json));
+                    Shutdown(); return;
+                }
                 if (options.GetValueOrDefault("probe-login", "false") == "true")
                 {
                     if (_runtime == null) throw new InvalidOperationException("Login regression requires an isolated owned broker.");

@@ -1,4 +1,4 @@
-param([string]$PublishDirectory = 'artifacts/app', [string]$ArchiveName = 'SshBroker-V2.0.1-win-x64.zip')
+﻿param([string]$PublishDirectory = 'artifacts/app', [string]$ArchiveName = 'SshBroker-V2.0.2-win-x64.zip')
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 Push-Location -LiteralPath $projectRoot

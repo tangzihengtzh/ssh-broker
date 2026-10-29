@@ -1,10 +1,10 @@
-# SSH Broker V2.0.1
+# SSH Broker V2.0.2
 
 **简体中文** | [English](README.en.md)
 
 Windows 多设备 SSH 工作区：同时管理虚拟机、Linux 开发板等远端目标，让终端用户与自动化工具共享对应的远端会话。
 
-[下载 V2.0.1](https://github.com/tangzihengtzh/ssh-broker/releases/tag/V2.0.1) · [使用帮助](docs/USER-GUIDE.html) · [自动化接口](docs/AUTOMATION.md) · [V2.0.0](https://github.com/tangzihengtzh/ssh-broker/releases/tag/V2.0.0) · [V1.0.0](https://github.com/tangzihengtzh/ssh-broker/releases/tag/V1.0.0)
+[下载 V2.0.2](https://github.com/tangzihengtzh/ssh-broker/releases/tag/V2.0.2) · [使用帮助](docs/USER-GUIDE.html) · [自动化接口](docs/AUTOMATION.md) · [V2.0.0](https://github.com/tangzihengtzh/ssh-broker/releases/tag/V2.0.0) · [V1.0.0](https://github.com/tangzihengtzh/ssh-broker/releases/tag/V1.0.0)
 
 ## 界面预览
 
@@ -16,7 +16,14 @@ Windows 多设备 SSH 工作区：同时管理虚拟机、Linux 开发板等远�
 
 ![SSH Broker 暗色主题双目标工作区](docs/images/workspace.png)
 
-图片来自实际 WPF 界面的离屏渲染，使用隔离的本地 SSH 演示数据，不包含真实设备或用户认证信息。
+## V2.0.2 更新
+
+修复开发板重装系统、IP 不变时，旧服务器指纹导致持续连接失败，且 GUI 缺少直接更新确认的问题。
+
+- 开发板重装系统等原因导致服务器指纹变化时，GUI 直接显示目标地址、新旧指纹及确认提示。
+- 选择信任后替换该地址的身份记录，保留已输入密码并立即重试一次；取消时保留旧记录，不继续认证。
+- 密码登录不使用登录私钥；服务器身份校验仍保留。自动重连和 CLI 不会自动接受变化的指纹。
+- 连接失败日志补充期望和实际服务器指纹。
 
 ## V2.0.1 更新
 
@@ -39,7 +46,7 @@ Windows 多设备 SSH 工作区：同时管理虚拟机、Linux 开发板等远�
 
 ## 安装与升级
 
-1. 从 Release 下载 **SshBroker-V2.0.1-win-x64.zip**，解压到独立目录。
+1. 从 Release 下载 **SshBroker-V2.0.2-win-x64.zip**，解压到独立目录。
 2. 准备 **.NET 8 Desktop Runtime（Windows x64）**，无需管理员权限。
 3. 运行 **SshBroker.exe**，保留同目录全部 DLL、JSON 和文档，不能只复制一个 EXE。
 4. 新建连接，填写目标地址、SSH 端口、账号和认证凭据，再连接；首次遇到未知服务器身份时确认一次。
@@ -74,9 +81,9 @@ python -m pip install -r tests/requirements.txt
 ./scripts/build-release.ps1
 ```
 
-输出目录为 `artifacts/V2.0.1/app/`，发布包为 `artifacts/SshBroker-V2.0.1-win-x64.zip`。历史版本标签与 Release 保留，`main` 跟随最新版。
+输出目录为 `artifacts/V2.0.2/app/`，发布包为 `artifacts/SshBroker-V2.0.2-win-x64.zip`。历史版本标签与 Release 保留，`main` 跟随最新版。
 
-功能检查覆盖自动恢复、次数耗尽、取消握手、连续闪断、历史回放、输入不补发、多目标隔离及托盘生命周期。详见 [测试记录](docs/TEST-RESULTS.md)。测试与产品图使用隔离的本地 SSH 服务，不操作用户使用中的应用或设备。
+功能检查覆盖自动恢复、次数耗尽、取消握手、连续闪断、历史回放、输入不补发、多目标隔离及托盘生命周期。详见 [测试记录](docs/TEST-RESULTS.md)。
 
 本版仍不包括 SFTP/SCP、跳板机、SSH agent、交互式 MFA 或每客户端独立远端 shell。GUI 监视区显示转义字符，完整终端渲染由外部终端提供。本机 Telnet 无认证，控制管道限制为当前 Windows 用户；原始终端日志可能包含会话中的敏感内容。
 

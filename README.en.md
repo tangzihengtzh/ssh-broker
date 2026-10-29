@@ -1,10 +1,10 @@
-# SSH Broker V2.0.1
+# SSH Broker V2.0.2
 
 [简体中文](README.md) | **English**
 
 A Windows multi-device SSH workspace for virtual machines and Linux boards, sharing each remote terminal between people and automation tools.
 
-[Download V2.0.1](https://github.com/tangzihengtzh/ssh-broker/releases/tag/V2.0.1) · [Usage guide](docs/USER-GUIDE.html) · [API reference](docs/AUTOMATION.md) · [V2.0.0](https://github.com/tangzihengtzh/ssh-broker/releases/tag/V2.0.0) · [V1.0.0](https://github.com/tangzihengtzh/ssh-broker/releases/tag/V1.0.0)
+[Download V2.0.2](https://github.com/tangzihengtzh/ssh-broker/releases/tag/V2.0.2) · [Usage guide](docs/USER-GUIDE.html) · [API reference](docs/AUTOMATION.md) · [V2.0.0](https://github.com/tangzihengtzh/ssh-broker/releases/tag/V2.0.0) · [V1.0.0](https://github.com/tangzihengtzh/ssh-broker/releases/tag/V1.0.0)
 
 ## Product views
 
@@ -16,7 +16,14 @@ Dark-theme workspace with two connected targets:
 
 ![SSH Broker multi-target workspace](docs/images/workspace.png)
 
-These images are rendered from the actual WPF interface with isolated local SSH demo data. They contain no real device or user authentication information.
+## New in V2.0.2
+
+Fixes repeated connection failures after reinstalling a board at the same IP: the saved host fingerprint became stale, but the GUI offered no direct confirmation to update it.
+
+- When a board is reinstalled and its host key changes, the GUI shows the endpoint and old/new fingerprints for confirmation.
+- Accepting replaces the saved trust record and retries once with the retained password. Declining preserves the old record and stops authentication.
+- Password authentication does not use a login private key. Server identity verification remains enabled; CLI and automatic recovery never silently accept changed keys.
+- Failure logs include expected and observed fingerprints.
 
 ## New in V2.0.1
 
@@ -39,7 +46,7 @@ These images are rendered from the actual WPF interface with isolated local SSH 
 
 ## Install and upgrade
 
-Download **SshBroker-V2.0.1-win-x64.zip**, extract into a separate folder, install **.NET 8 Desktop Runtime (Windows x64)** if necessary, and run **SshBroker.exe**. Keep all companion DLL, JSON and documentation files. Administrator privileges are not required.
+Download **SshBroker-V2.0.2-win-x64.zip**, extract into a separate folder, install **.NET 8 Desktop Runtime (Windows x64)** if necessary, and run **SshBroker.exe**. Keep all companion DLL, JSON and documentation files. Administrator privileges are not required.
 
 Create a target, enter the endpoint and credentials, and connect. Unknown server identities require first-use confirmation. Terminal clients connect through Telnet to `127.0.0.1` and that target's local port; see **Help** for examples.
 
@@ -72,9 +79,9 @@ python -m pip install -r tests/requirements.txt
 ./scripts/build-release.ps1
 ```
 
-Outputs: `artifacts/V2.0.1/app/` and `artifacts/SshBroker-V2.0.1-win-x64.zip`. Previous version tags and releases are preserved; `main` tracks the latest version.
+Outputs: `artifacts/V2.0.2/app/` and `artifacts/SshBroker-V2.0.2-win-x64.zip`. Previous version tags and releases are preserved; `main` tracks the latest version.
 
-Functional checks cover recovery, retry exhaustion, handshake cancellation, flapping, scrollback, no replay, target isolation and tray lifecycle. See [test results](docs/TEST-RESULTS.md). Tests and product captures use isolated local SSH fixtures, without touching the user's active application or devices.
+Functional checks cover recovery, retry exhaustion, handshake cancellation, flapping, scrollback, no replay, target isolation and tray lifecycle. See [test results](docs/TEST-RESULTS.md).
 
 SFTP/SCP, jump hosts, SSH agent, interactive MFA and independent shells per downstream client are not included. The GUI monitor escapes control characters; terminal clients handle terminal rendering. Loopback Telnet has no authentication, control pipes are restricted to the current Windows user, and raw terminal logs may contain sensitive content.
 
